@@ -13,12 +13,10 @@ export class GridController extends Component {
 
     private grid: (Node | null)[][] = [];
     private actualCellSize: number = 0;
+    private isProcessing: boolean = false; // Prevent tapping during animations
 
     onLoad() {
-        // Global listener: bypasses node size/hitbox issues
         input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
-
-        // Ensure UITransform exists for coordinate conversion
         const transform = this.getComponent(UITransform);
         if (transform && (transform.contentSize.width === 0 || transform.contentSize.height === 0)) {
             transform.setContentSize(new Size(800, 800));
@@ -26,14 +24,11 @@ export class GridController extends Component {
     }
 
     onDestroy() {
-        // Clean up global listener
         input.off(Input.EventType.TOUCH_END, this.onGridTouch, this);
     }
 
     start() {
         this.generateBlockerGrid();
-        
-        // Spawn delay to ensure grid layout is finished
         this.scheduleOnce(() => {
             this.spawnInitialBalls(this.initialSpawnCount); 
         }, 1.0);
@@ -41,7 +36,6 @@ export class GridController extends Component {
 
     generateBlockerGrid() {
         if (!this.blockerPrefab) return;
-
         const tempBrick = instantiate(this.blockerPrefab);
         const transform = tempBrick.getComponent(UITransform);
         this.actualCellSize = transform ? transform.contentSize.width : 83;
@@ -67,67 +61,54 @@ export class GridController extends Component {
 
     spawnInitialBalls(count: number) {
         let spawned = 0;
-        // Restricting spawn to Columns 0, 1, 2 and Rows 0, 1, 2, 3, 4
         const maxColsToFill = 3; 
         const maxRowsToFill = 5; 
 
         for (let c = 0; c < maxColsToFill; c++) {
             for (let r = 0; r < maxRowsToFill; r++) {
                 if (spawned >= count) return;
-
                 const currentBrick = this.grid[r][c];
                 if (!currentBrick || r >= this.rows || c >= this.cols) continue;
 
                 const targetPos = currentBrick.position.clone();
-                const delay = spawned * 0.08;
-
-                this.scheduleOnce(() => {
-                    if (currentBrick && currentBrick.isValid) currentBrick.destroy();
-
-                    const randomIdx = Math.floor(Math.random() * this.ballPrefabs.length);
-                    const ballPrefab = this.ballPrefabs[randomIdx];
-                    const ball = instantiate(ballPrefab);
-                    ball.parent = this.node;
-
-                    const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
-                    piece.row = r;
-                    piece.col = c;
-                    piece.prefabName = ballPrefab.name; // Crucial for matching
-
-                    const ballTransform = ball.getComponent(UITransform);
-                    if (ballTransform) {
-                        ballTransform.setContentSize(new Size(this.actualCellSize, this.actualCellSize));
-                    }
-
-                    ball.setPosition(new Vec3(targetPos.x, targetPos.y + 600, 0));
-                    tween(ball)
-                        .to(0.4, { position: targetPos }, { easing: 'bounceOut' })
-                        .start();
-
-                    this.grid[r][c] = ball;
-                }, delay);
-
+                this.spawnBallAt(r, c, targetPos, spawned * 0.05);
                 spawned++;
             }
         }
     }
 
+    spawnBallAt(r: number, c: number, targetPos: Vec3, delay: number) {
+        this.scheduleOnce(() => {
+            const randomIdx = Math.floor(Math.random() * this.ballPrefabs.length);
+            const ballPrefab = this.ballPrefabs[randomIdx];
+            const ball = instantiate(ballPrefab);
+            ball.parent = this.node;
+
+            const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
+            piece.row = r;
+            piece.col = c;
+            piece.prefabName = ballPrefab.name; 
+
+            const ballTransform = ball.getComponent(UITransform);
+            if (ballTransform) ballTransform.setContentSize(new Size(this.actualCellSize, this.actualCellSize));
+
+            ball.setPosition(new Vec3(targetPos.x, targetPos.y + 800, 0));
+            tween(ball).to(0.4, { position: targetPos }, { easing: 'bounceOut' }).start();
+            this.grid[r][c] = ball;
+        }, delay);
+    }
+
     onGridTouch(event: EventTouch) {
+        if (this.isProcessing) return;
+
         const touchPos = event.getUILocation();
         const uiTransform = this.node.getComponent(UITransform);
-        
-        // Convert screen touch to the local coordinate system of the GridManager
         const localPos = uiTransform.convertToNodeSpaceAR(new Vec3(touchPos.x, touchPos.y, 0));
 
         const totalW = (this.cols - 1) * this.actualCellSize;
         const totalH = (this.rows - 1) * this.actualCellSize;
-        
-        // Match the centered grid positioning math
         const c = Math.round((localPos.x + (totalW / 2)) / this.actualCellSize);
         const r = Math.round(((totalH / 2) - localPos.y) / this.actualCellSize);
-
-        // Debug log to confirm input is working
-        console.log(`Input Received: Pos(${Math.floor(localPos.x)}, ${Math.floor(localPos.y)}) -> Cell[R:${r}, C:${c}]`);
 
         if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) {
             const clickedNode = this.grid[r][c];
@@ -139,48 +120,91 @@ export class GridController extends Component {
 
     popConnectedBalls(r: number, c: number) {
         const targetNode = this.grid[r][c];
-        if (!targetNode) return;
-        
-        const targetPiece = targetNode.getComponent(GridPiece);
+        const targetPiece = targetNode?.getComponent(GridPiece);
         if (!targetPiece) return;
 
         const typeToMatch = targetPiece.prefabName; 
         const matches: Node[] = [];
-        
         const findMatches = (row: number, col: number) => {
             if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) return;
-            
             const node = this.grid[row][col];
             if (!node || matches.indexOf(node) !== -1) return;
-            
             const piece = node.getComponent(GridPiece);
             if (piece && piece.prefabName === typeToMatch) {
                 matches.push(node);
-                
-                // Recursive Flood Fill
-                findMatches(row + 1, col);
-                findMatches(row - 1, col);
-                findMatches(row, col + 1);
-                findMatches(row, col - 1);
+                findMatches(row + 1, col); findMatches(row - 1, col);
+                findMatches(row, col + 1); findMatches(row, col - 1);
             }
         };
 
         findMatches(r, c);
 
-        // Standard "Match 2" destruction logic
         if (matches.length >= 2) {
-            matches.forEach(node => {
+            this.isProcessing = true;
+            matches.forEach((node, index) => {
                 const p = node.getComponent(GridPiece);
-                if (p) this.grid[p.row][p.col] = null; 
-                
+                this.grid[p.row][p.col] = null; 
                 tween(node)
-                    .to(0.05, { scale: new Vec3(1.1, 1.1, 1) })
                     .to(0.1, { scale: new Vec3(0, 0, 0) })
                     .call(() => {
-                        if (node.isValid) node.destroy();
+                        node.destroy();
+                        if (index === matches.length - 1) this.applyGravity();
                     })
                     .start();
             });
         }
+    }
+
+    applyGravity() {
+        let maxDelay = 0;
+
+        for (let c = 0; c < this.cols; c++) {
+            let emptySpaces = 0;
+            // Scan from bottom to top
+            for (let r = this.rows - 1; r >= 0; r--) {
+                if (this.grid[r][c] === null) {
+                    emptySpaces++;
+                } else if (emptySpaces > 0) {
+                    // Ball found above an empty space, move it down
+                    const ball = this.grid[r][c];
+                    const newRow = r + emptySpaces;
+                    
+                    this.grid[newRow][c] = ball;
+                    this.grid[r][c] = null;
+
+                    const piece = ball.getComponent(GridPiece);
+                    piece.row = newRow;
+
+                    const targetY = (this.rows - 1) * this.actualCellSize / 2 - (newRow * this.actualCellSize);
+                    const delay = 0.05 * emptySpaces;
+                    maxDelay = Math.max(maxDelay, delay + 0.3);
+
+                    tween(ball).to(0.3, { position: new Vec3(ball.position.x, targetY, 0) }, { easing: 'sineIn' }).start();
+                }
+            }
+        }
+
+        this.scheduleOnce(() => this.refillGrid(), maxDelay + 0.1);
+    }
+
+    refillGrid() {
+        let spawnedCount = 0;
+        const totalW = (this.cols - 1) * this.actualCellSize;
+        const totalH = (this.rows - 1) * this.actualCellSize;
+        const offsetX = totalW / 2;
+        const offsetY = totalH / 2;
+
+        for (let c = 0; c < this.cols; c++) {
+            for (let r = this.rows - 1; r >= 0; r--) {
+                if (this.grid[r][c] === null) {
+                    const posX = (c * this.actualCellSize) - offsetX;
+                    const posY = offsetY - (r * this.actualCellSize);
+                    this.spawnBallAt(r, c, new Vec3(posX, posY, 0), spawnedCount * 0.05);
+                    spawnedCount++;
+                }
+            }
+        }
+
+        this.scheduleOnce(() => { this.isProcessing = false; }, spawnedCount * 0.05 + 0.5);
     }
 }
