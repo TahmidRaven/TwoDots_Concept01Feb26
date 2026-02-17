@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Prefab, instantiate, Vec3, tween, UITransform, Size, CCInteger, EventTouch } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, Vec3, tween, UITransform, Size, CCInteger, EventTouch, input, Input } from 'cc';
 import { GridPiece } from './GridPiece';
 const { ccclass, property } = _decorator;
 
@@ -9,15 +9,31 @@ export class GridController extends Component {
     
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
-    @property({ type: CCInteger }) initialSpawnCount: number = 15; // Set to 10-15 in Inspector
+    @property({ type: CCInteger }) initialSpawnCount: number = 15; 
 
     private grid: (Node | null)[][] = [];
     private actualCellSize: number = 0;
 
+    onLoad() {
+        // Global listener: bypasses node size/hitbox issues
+        input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
+
+        // Ensure UITransform exists for coordinate conversion
+        const transform = this.getComponent(UITransform);
+        if (transform && (transform.contentSize.width === 0 || transform.contentSize.height === 0)) {
+            transform.setContentSize(new Size(800, 800));
+        }
+    }
+
+    onDestroy() {
+        // Clean up global listener
+        input.off(Input.EventType.TOUCH_END, this.onGridTouch, this);
+    }
+
     start() {
-        this.node.on(Node.EventType.TOUCH_END, this.onGridTouch, this);
         this.generateBlockerGrid();
         
+        // Spawn delay to ensure grid layout is finished
         this.scheduleOnce(() => {
             this.spawnInitialBalls(this.initialSpawnCount); 
         }, 1.0);
@@ -49,20 +65,17 @@ export class GridController extends Component {
         }
     }
 
-spawnInitialBalls(count: number) {
+    spawnInitialBalls(count: number) {
         let spawned = 0;
-        
-        // Define the bounds for your 3x5 starting area
-        const maxColsToFill = 3; // Columns 0, 1, 2
-        const maxRowsToFill = 5; // Rows 0, 1, 2, 3, 4
+        // Restricting spawn to Columns 0, 1, 2 and Rows 0, 1, 2, 3, 4
+        const maxColsToFill = 3; 
+        const maxRowsToFill = 5; 
 
-        // Iterate through the specific sub-grid defined above
         for (let c = 0; c < maxColsToFill; c++) {
             for (let r = 0; r < maxRowsToFill; r++) {
                 if (spawned >= count) return;
 
                 const currentBrick = this.grid[r][c];
-                // Safety check: ensure we aren't trying to access outside the actual grid array
                 if (!currentBrick || r >= this.rows || c >= this.cols) continue;
 
                 const targetPos = currentBrick.position.clone();
@@ -79,14 +92,13 @@ spawnInitialBalls(count: number) {
                     const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
                     piece.row = r;
                     piece.col = c;
-                    piece.prefabName = ballPrefab.name; 
+                    piece.prefabName = ballPrefab.name; // Crucial for matching
 
                     const ballTransform = ball.getComponent(UITransform);
                     if (ballTransform) {
                         ballTransform.setContentSize(new Size(this.actualCellSize, this.actualCellSize));
                     }
 
-                    // Drop effect from above
                     ball.setPosition(new Vec3(targetPos.x, targetPos.y + 600, 0));
                     tween(ball)
                         .to(0.4, { position: targetPos }, { easing: 'bounceOut' })
@@ -103,17 +115,22 @@ spawnInitialBalls(count: number) {
     onGridTouch(event: EventTouch) {
         const touchPos = event.getUILocation();
         const uiTransform = this.node.getComponent(UITransform);
+        
+        // Convert screen touch to the local coordinate system of the GridManager
         const localPos = uiTransform.convertToNodeSpaceAR(new Vec3(touchPos.x, touchPos.y, 0));
 
         const totalW = (this.cols - 1) * this.actualCellSize;
         const totalH = (this.rows - 1) * this.actualCellSize;
         
+        // Match the centered grid positioning math
         const c = Math.round((localPos.x + (totalW / 2)) / this.actualCellSize);
         const r = Math.round(((totalH / 2) - localPos.y) / this.actualCellSize);
 
+        // Debug log to confirm input is working
+        console.log(`Input Received: Pos(${Math.floor(localPos.x)}, ${Math.floor(localPos.y)}) -> Cell[R:${r}, C:${c}]`);
+
         if (r >= 0 && r < this.rows && c >= 0 && c < this.cols) {
             const clickedNode = this.grid[r][c];
-            // Check if it's a ball (has GridPiece) and not a blocker
             if (clickedNode && clickedNode.getComponent(GridPiece)) {
                 this.popConnectedBalls(r, c);
             }
@@ -125,19 +142,22 @@ spawnInitialBalls(count: number) {
         if (!targetNode) return;
         
         const targetPiece = targetNode.getComponent(GridPiece);
-        const typeToMatch = targetPiece.prefabName; // Matching by Prefab Type
+        if (!targetPiece) return;
+
+        const typeToMatch = targetPiece.prefabName; 
         const matches: Node[] = [];
         
         const findMatches = (row: number, col: number) => {
             if (row < 0 || row >= this.rows || col < 0 || col >= this.cols) return;
-            const node = this.grid[row][col];
             
+            const node = this.grid[row][col];
             if (!node || matches.indexOf(node) !== -1) return;
             
             const piece = node.getComponent(GridPiece);
-            // Verify it's the same prefab type
             if (piece && piece.prefabName === typeToMatch) {
                 matches.push(node);
+                
+                // Recursive Flood Fill
                 findMatches(row + 1, col);
                 findMatches(row - 1, col);
                 findMatches(row, col + 1);
@@ -147,15 +167,18 @@ spawnInitialBalls(count: number) {
 
         findMatches(r, c);
 
+        // Standard "Match 2" destruction logic
         if (matches.length >= 2) {
             matches.forEach(node => {
                 const p = node.getComponent(GridPiece);
-                this.grid[p.row][p.col] = null; 
+                if (p) this.grid[p.row][p.col] = null; 
                 
                 tween(node)
-                    .to(0.1, { scale: new Vec3(1.2, 1.2, 1) })
+                    .to(0.05, { scale: new Vec3(1.1, 1.1, 1) })
                     .to(0.1, { scale: new Vec3(0, 0, 0) })
-                    .call(() => node.destroy())
+                    .call(() => {
+                        if (node.isValid) node.destroy();
+                    })
                     .start();
             });
         }
