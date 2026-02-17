@@ -1,7 +1,7 @@
 [
   {
     "__type__": "cc.Prefab",
-    "_name": "GrayPlane",
+    "_name": "YellowPlane",
     "_objFlags": 0,
     "__editorExtras__": {},
     "_native": "",
@@ -13,7 +13,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "GrayPlane",
+    "_name": "YellowPlane",
     "_objFlags": 0,
     "__editorExtras__": {},
     "_parent": null,
@@ -25,10 +25,13 @@
       },
       {
         "__id__": 4
+      },
+      {
+        "__id__": 6
       }
     ],
     "_prefab": {
-      "__id__": 6
+      "__id__": 8
     },
     "_lpos": {
       "__type__": "cc.Vec3",
@@ -133,6 +136,25 @@
     "fileId": "92knmWpClPSascMxtSQAWj"
   },
   {
+    "__type__": "d023bPDM55JNKWQNbfIbZM/",
+    "_name": "",
+    "_objFlags": 0,
+    "__editorExtras__": {},
+    "node": {
+      "__id__": 1
+    },
+    "_enabled": true,
+    "__prefab": {
+      "__id__": 7
+    },
+    "colorId": "yellow",
+    "_id": ""
+  },
+  {
+    "__type__": "cc.CompPrefabInfo",
+    "fileId": "10anyWpphMO7siUnP+cW8y"
+  },
+  {
     "__type__": "cc.PrefabInfo",
     "root": {
       "__id__": 1
@@ -141,6 +163,7 @@
       "__id__": 0
     },
     "fileId": "faxex4O39F2Lt5m7bRzWH6",
+    "instance": null,
     "targetOverrides": null
   }
 ]

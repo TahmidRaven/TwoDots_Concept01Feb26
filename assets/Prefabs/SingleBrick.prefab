@@ -115,7 +115,7 @@
     },
     "_type": 0,
     "_fillType": 0,
-    "_sizeMode": 2,
+    "_sizeMode": 0,
     "_fillCenter": {
       "__type__": "cc.Vec2",
       "x": 0,
@@ -141,6 +141,7 @@
       "__id__": 0
     },
     "fileId": "2ab59fSDNCDobfyJuP3xX8",
+    "instance": null,
     "targetOverrides": null
   }
 ]
