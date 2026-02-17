@@ -8,4 +8,6 @@ export class GridPiece extends Component {
 
     public row: number = 0;
     public col: number = 0;
+    
+    public prefabName: string = ""; 
 }
