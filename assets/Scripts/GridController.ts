@@ -17,8 +17,7 @@ export class GridController extends Component {
     private actualCellSize: number = 0;
     private isProcessing: boolean = false;
 
-    // Issue 2 Fix: Predefine first few ball indices to prevent deadlock
-    // 0 = first prefab, 1 = second, etc.
+    // Issue 2 Fix: Predefined queue to ensure matches on start
     private predefinedQueue: number[] = [0, 0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3]; 
 
     onLoad() {
@@ -56,6 +55,7 @@ export class GridController extends Component {
         }
     }
 
+    // --- STEP 1: POP MATCH ---
     popConnectedBalls(r: number, c: number) {
         const targetNode = this.grid[r][c];
         const targetPiece = targetNode?.getComponent(GridPiece);
@@ -81,10 +81,15 @@ export class GridController extends Component {
         if (matches.length >= 2) {
             this.isProcessing = true;
 
-            let avgR = 0, avgC = 0;
-            matches.forEach(n => { const p = n.getComponent(GridPiece); avgR += p.row; avgC += p.col; });
-            const midR = Math.round(avgR / matches.length);
-            const midC = Math.round(avgC / matches.length);
+            // Improved Midpoint Calculation
+            let totalR = 0, totalC = 0;
+            matches.forEach(n => { 
+                const p = n.getComponent(GridPiece); 
+                totalR += p.row; 
+                totalC += p.col; 
+            });
+            const midR = Math.round(totalR / matches.length);
+            const midC = Math.round(totalC / matches.length);
 
             matches.forEach((node, index) => {
                 const p = node.getComponent(GridPiece);
@@ -97,6 +102,7 @@ export class GridController extends Component {
                     .call(() => {
                         node.destroy();
                         if (index === matches.length - 1) {
+                            // Trigger TNT for matches of 3 or more
                             if (matches.length >= 3) {
                                 this.scheduleOnce(() => this.triggerTNT(midR, midC), 0.1);
                             } else {
@@ -109,6 +115,7 @@ export class GridController extends Component {
         }
     }
 
+    // --- STEP 2: TNT (3x3 AREA) ---
     triggerTNT(r: number, c: number) {
         if (!this.tntPrefab) { this.applyGravity(); return; }
 
@@ -122,34 +129,38 @@ export class GridController extends Component {
         if (anim) anim.play();
 
         this.scheduleOnce(() => {
-            for (let dr = -2; dr <= 1; dr++) {
-                for (let dc = -2; dc <= 1; dc++) {
+            // 3x3 Grid destruction logic
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
                     const nr = r + dr, nc = c + dc;
                     if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-                        const target = this.grid[nr] && this.grid[nr][nc] ? this.grid[nr][nc] : null; 
-                        if (target && target.getComponent(GridPiece)) {
+                        const target = this.grid[nr][nc]; 
+                        if (target) {
                             this.grid[nr][nc] = null;
-                            tween(target).to(0.1, { scale: v3(0, 0, 0) }).call(() => target.destroy()).start();
+                            tween(target)
+                                .to(0.15, { scale: v3(0, 0, 0) }, { easing: 'sineIn' })
+                                .call(() => { if(target.isValid) target.destroy(); })
+                                .start();
                         }
                     }
                 }
             }
             this.scheduleOnce(() => {
-                tnt.destroy();
+                if(tnt.isValid) tnt.destroy();
                 this.applyGravity();
             }, 0.3);
         }, 0.5); 
     }
 
+    // --- STEP 3: GRAVITY ---
     applyGravity() {
         let longestMove = 0;
         for (let c = 0; c < this.cols; c++) {
             let emptySpaces = 0;
             for (let r = this.rows - 1; r >= 0; r--) {
                 const node = this.grid[r][c];
-                if (node === null) {
-                    emptySpaces++;
-                } else if (node.getComponent(GridPiece)) {
+                if (node === null) emptySpaces++;
+                else if (node.getComponent(GridPiece)) {
                     if (emptySpaces > 0) {
                         const newRow = r + emptySpaces;
                         this.grid[newRow][c] = node;
@@ -161,27 +172,24 @@ export class GridController extends Component {
                         tween(node).to(duration, { position: v3(node.position.x, targetY, 0) }, { easing: 'sineIn' }).start();
                         longestMove = Math.max(longestMove, duration);
                     }
-                } else {
-                    emptySpaces = 0; 
-                }
+                } else emptySpaces = 0;
             }
         }
         this.scheduleOnce(() => this.refillGrid(false), longestMove + 0.1);
     }
 
-    // Issue 1 Fix: Refill from bottom row (rows-1) to top (0)
+    // --- STEP 4: REFILL (BOTTOM TO TOP) ---
     refillGrid(isInitial: boolean = false) {
         let count = 0;
         const interval = isInitial ? 0.05 : 0.08;
         let maxSpawnDelay = 0;
 
         for (let c = 0; c < this.cols; c++) {
-            // Processing row from bottom to top
+            // Processing from rows-1 (bottom) up to 0 (top)
             for (let r = this.rows - 1; r >= 0; r--) {
-                // Skip cells that are blockers (Nodes without GridPiece)
                 const cell = this.grid[r][c];
                 const isBlocker = cell && !cell.getComponent(GridPiece);
-                if (isBlocker) continue;
+                if (isBlocker) continue; 
 
                 if (this.grid[r][c] === null) {
                     const delay = count * interval;
@@ -198,7 +206,7 @@ export class GridController extends Component {
         this.scheduleOnce(() => {
             let prefabIdx: number;
 
-            // Issue 2 Fix: Use the predefined queue for the initial setup
+            // Use queue for initial matches
             if (isInitial && this.predefinedQueue.length > 0) {
                 prefabIdx = this.predefinedQueue.shift()!;
             } else {
@@ -215,17 +223,12 @@ export class GridController extends Component {
             const totalW = (this.cols - 1) * this.actualCellSize;
             const totalH = (this.rows - 1) * this.actualCellSize;
             const startX = (c * this.actualCellSize) - (totalW / 2);
-            
-            // Start balls higher up off-screen
             const startY = (totalH / 2) + 500; 
             const targetY = (totalH / 2) - (targetRow * this.actualCellSize);
 
             ball.setPosition(v3(startX, startY, 0));
             this.grid[targetRow][c] = ball;
-            
-            tween(ball)
-                .to(isInitial ? 0.6 : 0.4, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' })
-                .start();
+            tween(ball).to(isInitial ? 0.6 : 0.4, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' }).start();
         }, delay);
     }
 
