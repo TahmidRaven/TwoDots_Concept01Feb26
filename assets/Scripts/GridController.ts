@@ -17,6 +17,10 @@ export class GridController extends Component {
     private actualCellSize: number = 0;
     private isProcessing: boolean = false;
 
+    // Issue 2 Fix: Predefine first few ball indices to prevent deadlock
+    // 0 = first prefab, 1 = second, etc.
+    private predefinedQueue: number[] = [0, 0, 0, 0, 1, 1, 2, 2, 2, 3, 3, 3]; 
+
     onLoad() {
         input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
     }
@@ -52,7 +56,6 @@ export class GridController extends Component {
         }
     }
 
-    // --- STEP 1: POP MATCH ---
     popConnectedBalls(r: number, c: number) {
         const targetNode = this.grid[r][c];
         const targetPiece = targetNode?.getComponent(GridPiece);
@@ -78,7 +81,6 @@ export class GridController extends Component {
         if (matches.length >= 2) {
             this.isProcessing = true;
 
-            // Calculate center for TNT before destroying balls
             let avgR = 0, avgC = 0;
             matches.forEach(n => { const p = n.getComponent(GridPiece); avgR += p.row; avgC += p.col; });
             const midR = Math.round(avgR / matches.length);
@@ -90,11 +92,10 @@ export class GridController extends Component {
                 this.grid[p.row][p.col] = null;
 
                 tween(node)
-                    .to(0.1, { scale: v3(0.8, 0.8, 1) }) // Anticipation
+                    .to(0.1, { scale: v3(0.8, 0.8, 1) }) 
                     .to(0.15, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
                     .call(() => {
                         node.destroy();
-                        // Proceed to next step only after last ball pops
                         if (index === matches.length - 1) {
                             if (matches.length >= 3) {
                                 this.scheduleOnce(() => this.triggerTNT(midR, midC), 0.1);
@@ -108,7 +109,6 @@ export class GridController extends Component {
         }
     }
 
-    // --- STEP 2: TNT (IF APPLICABLE) ---
     triggerTNT(r: number, c: number) {
         if (!this.tntPrefab) { this.applyGravity(); return; }
 
@@ -121,21 +121,19 @@ export class GridController extends Component {
         const anim = tnt.getComponent(Animation);
         if (anim) anim.play();
 
-        // Wait for sizzle animation, then explode
         this.scheduleOnce(() => {
             for (let dr = -2; dr <= 1; dr++) {
                 for (let dc = -2; dc <= 1; dc++) {
                     const nr = r + dr, nc = c + dc;
                     if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-                        const target = this.grid[nr][nr] ? this.grid[nr][nc] : null; 
-                        if (target) {
+                        const target = this.grid[nr] && this.grid[nr][nc] ? this.grid[nr][nc] : null; 
+                        if (target && target.getComponent(GridPiece)) {
                             this.grid[nr][nc] = null;
                             tween(target).to(0.1, { scale: v3(0, 0, 0) }).call(() => target.destroy()).start();
                         }
                     }
                 }
             }
-            // Briefly show explosion effect, then move to gravity
             this.scheduleOnce(() => {
                 tnt.destroy();
                 this.applyGravity();
@@ -143,15 +141,15 @@ export class GridController extends Component {
         }, 0.5); 
     }
 
-    // --- STEP 3: GRAVITY (BALLS FALL) ---
     applyGravity() {
         let longestMove = 0;
         for (let c = 0; c < this.cols; c++) {
             let emptySpaces = 0;
             for (let r = this.rows - 1; r >= 0; r--) {
                 const node = this.grid[r][c];
-                if (node === null) emptySpaces++;
-                else if (node.getComponent(GridPiece)) {
+                if (node === null) {
+                    emptySpaces++;
+                } else if (node.getComponent(GridPiece)) {
                     if (emptySpaces > 0) {
                         const newRow = r + emptySpaces;
                         this.grid[newRow][c] = node;
@@ -163,22 +161,28 @@ export class GridController extends Component {
                         tween(node).to(duration, { position: v3(node.position.x, targetY, 0) }, { easing: 'sineIn' }).start();
                         longestMove = Math.max(longestMove, duration);
                     }
-                } else emptySpaces = 0;
+                } else {
+                    emptySpaces = 0; 
+                }
             }
         }
-        // Wait for all balls to finish falling before refilling
         this.scheduleOnce(() => this.refillGrid(false), longestMove + 0.1);
     }
 
-    // --- STEP 4: REFILL (NEW BALLS DROP) ---
+    // Issue 1 Fix: Refill from bottom row (rows-1) to top (0)
     refillGrid(isInitial: boolean = false) {
         let count = 0;
-        const interval = isInitial ? 0.12 : 0.08;
+        const interval = isInitial ? 0.05 : 0.08;
         let maxSpawnDelay = 0;
 
         for (let c = 0; c < this.cols; c++) {
-            for (let r = 0; r < this.rows; r++) {
-                if (this.grid[r][c] && !this.grid[r][c].getComponent(GridPiece)) break; 
+            // Processing row from bottom to top
+            for (let r = this.rows - 1; r >= 0; r--) {
+                // Skip cells that are blockers (Nodes without GridPiece)
+                const cell = this.grid[r][c];
+                const isBlocker = cell && !cell.getComponent(GridPiece);
+                if (isBlocker) continue;
+
                 if (this.grid[r][c] === null) {
                     const delay = count * interval;
                     this.spawnBallAtTop(c, r, delay, isInitial);
@@ -187,32 +191,44 @@ export class GridController extends Component {
                 }
             }
         }
-        // Finally unlock the grid once the last ball has landed
         this.scheduleOnce(() => { this.isProcessing = false; }, maxSpawnDelay + 0.8);
     }
 
     spawnBallAtTop(c: number, targetRow: number, delay: number, isInitial: boolean) {
         this.scheduleOnce(() => {
-            const randomIdx = Math.floor(Math.random() * this.ballPrefabs.length);
-            const ball = instantiate(this.ballPrefabs[randomIdx]);
+            let prefabIdx: number;
+
+            // Issue 2 Fix: Use the predefined queue for the initial setup
+            if (isInitial && this.predefinedQueue.length > 0) {
+                prefabIdx = this.predefinedQueue.shift()!;
+            } else {
+                prefabIdx = Math.floor(Math.random() * this.ballPrefabs.length);
+            }
+
+            const ball = instantiate(this.ballPrefabs[prefabIdx]);
             ball.parent = this.node;
             const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
-            piece.row = targetRow; piece.col = c;
-            piece.prefabName = this.ballPrefabs[randomIdx].name; 
+            piece.row = targetRow; 
+            piece.col = c;
+            piece.prefabName = this.ballPrefabs[prefabIdx].name; 
 
             const totalW = (this.cols - 1) * this.actualCellSize;
             const totalH = (this.rows - 1) * this.actualCellSize;
             const startX = (c * this.actualCellSize) - (totalW / 2);
-            const startY = (totalH / 2) + (isInitial ? 600 : 300); 
+            
+            // Start balls higher up off-screen
+            const startY = (totalH / 2) + 500; 
             const targetY = (totalH / 2) - (targetRow * this.actualCellSize);
 
             ball.setPosition(v3(startX, startY, 0));
             this.grid[targetRow][c] = ball;
-            tween(ball).to(isInitial ? 0.7 : 0.5, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' }).start();
+            
+            tween(ball)
+                .to(isInitial ? 0.6 : 0.4, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' })
+                .start();
         }, delay);
     }
 
-    // Helpers
     checkAndDestroyAdjacentBlockers(r: number, c: number) {
         const directions = [{dr:1,dc:0}, {dr:-1,dc:0}, {dr:0,dc:1}, {dr:0,dc:-1}];
         directions.forEach(dir => {
