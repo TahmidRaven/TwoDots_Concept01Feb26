@@ -102,7 +102,7 @@
     "_lpos": {
       "__type__": "cc.Vec3",
       "x": 540,
-      "y": 960.0000000000002,
+      "y": 960,
       "z": 0
     },
     "_lrot": {
@@ -187,7 +187,7 @@
     "_priority": 0,
     "_fov": 45,
     "_fovAxis": 0,
-    "_orthoHeight": 960.0000000000001,
+    "_orthoHeight": 960,
     "_near": 0,
     "_far": 2000,
     "_color": {
@@ -1405,6 +1405,10 @@
       "__uuid__": "a7b2c448-6385-4e52-8515-963b2cfe6aa2",
       "__expectedType__": "cc.Prefab"
     },
+    "orbPrefab": {
+      "__uuid__": "8d8de99c-a8c4-4ab1-8d95-b324052c5ecb",
+      "__expectedType__": "cc.Prefab"
+    },
     "rows": 9,
     "cols": 9,
     "_id": "99I+84CzNCKZ6JqVp/OkTl"
@@ -1543,7 +1547,7 @@
     "_contentSize": {
       "__type__": "cc.Size",
       "width": 1080,
-      "height": 1920.0000000000002
+      "height": 1920
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",

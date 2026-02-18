@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Prefab, instantiate, Vec3, tween, UITransform, CCInteger, EventTouch, input, Input, v3, Animation } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, Vec3, tween, UITransform, CCInteger, EventTouch, input, Input, v3, Animation, UIOpacity } from 'cc';
 import { GridPiece } from './GridPiece';
 const { ccclass, property } = _decorator;
 
@@ -7,6 +7,7 @@ export class GridController extends Component {
     @property(Prefab) blockerPrefab: Prefab = null; 
     @property([Prefab]) ballPrefabs: Prefab[] = []; 
     @property(Prefab) tntPrefab: Prefab = null;
+    @property(Prefab) orbPrefab: Prefab = null; 
     
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
@@ -100,6 +101,12 @@ export class GridController extends Component {
             return;
         }
 
+        if (piece.prefabName === "ORB") {
+            this.isProcessing = true;
+            this.triggerOrb(r, c);
+            return;
+        }
+
         this.popConnectedBalls(r, c);
     }
 
@@ -107,6 +114,7 @@ export class GridController extends Component {
         const targetNode = this.grid[r][c]!;
         const targetPiece = targetNode.getComponent(GridPiece)!;
         const typeToMatch = targetPiece.prefabName;
+        const colorToMatch = targetPiece.colorId; // Capture the colorId
         const matches: Node[] = [];
 
         const findMatches = (row: number, col: number) => {
@@ -125,6 +133,8 @@ export class GridController extends Component {
 
         if (matches.length >= 2) {
             this.isProcessing = true;
+            const matchCount = matches.length;
+
             matches.forEach((node, index) => {
                 const p = node.getComponent(GridPiece)!;
                 this.checkAndDestroyAdjacentBlockers(p.row, p.col);
@@ -135,8 +145,10 @@ export class GridController extends Component {
                     .call(() => {
                         node.destroy();
                         if (index === matches.length - 1) {
-                            if (matches.length >= 3) {
+                            if (matchCount === 3) {
                                 this.spawnTNTItem(r, c);
+                            } else if (matchCount >= 4) {
+                                this.spawnOrbItem(r, c, colorToMatch); // Pass colorId to the Orb
                             } else {
                                 this.applyGravity();
                             }
@@ -147,37 +159,90 @@ export class GridController extends Component {
         }
     }
 
+    private triggerOrb(r: number, c: number) {
+        const orbNode = this.grid[r][c];
+        if (!orbNode) return;
+
+        const orbPiece = orbNode.getComponent(GridPiece);
+        // Use the colorId stored in the Orb, or fallback to first available color
+        let targetColorId = orbPiece?.colorId || "";
+
+        if (!targetColorId) {
+            for (let row = 0; row < this.rows; row++) {
+                for (let col = 0; col < this.cols; col++) {
+                    const node = this.grid[row][col];
+                    const piece = node?.getComponent(GridPiece);
+                    if (piece && piece.prefabName !== "TNT" && piece.prefabName !== "ORB") {
+                        targetColorId = piece.colorId;
+                        break;
+                    }
+                }
+                if (targetColorId) break;
+            }
+        }
+
+        if (!targetColorId) {
+            this.grid[r][c] = null;
+            orbNode.destroy();
+            this.applyGravity();
+            return;
+        }
+
+        this.grid[r][c] = null;
+
+        const ballsToDestroy: Node[] = [];
+        for (let row = 0; row < this.rows; row++) {
+            for (let col = 0; col < this.cols; col++) {
+                const node = this.grid[row][col];
+                const piece = node?.getComponent(GridPiece);
+                if (piece && piece.colorId === targetColorId) {
+                    ballsToDestroy.push(node!);
+                    this.grid[row][col] = null;
+                }
+            }
+        }
+
+        ballsToDestroy.forEach((node) => {
+            tween(node)
+                .to(0.3, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
+                .call(() => node.destroy())
+                .start();
+        });
+
+        let uiOpacity = orbNode.getComponent(UIOpacity) || orbNode.addComponent(UIOpacity);
+        
+        tween(orbNode)
+            .to(0.4, { scale: v3(1.5, 1.5, 1.5) })
+            .call(() => {
+                orbNode.destroy();
+                this.applyGravity();
+            })
+            .start();
+
+        tween(uiOpacity)
+            .to(0.4, { opacity: 0 })
+            .start();
+    }
+
     private triggerTNT(r: number, c: number) {
         const tntNode = this.grid[r][c];
         if (!tntNode) return;
-
         const anim = tntNode.getComponent(Animation);
-        if (anim) {
-            anim.play();
-        }
-        
-        // Execute the explosion logic immediately so visuals sync up
+        if (anim) anim.play();
         this.executeExplosion(r, c, tntNode);
     }
 
     private executeExplosion(r: number, c: number, tntNode: Node) {
-        // 1. Immediately remove TNT from grid logic so gravity knows the space is reserved
         this.grid[r][c] = null;
-
-        // 2. Delay the "Blast" logic by 0.35 seconds
         this.scheduleOnce(() => {
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
                     const nr = r + dr, nc = c + dc;
-                    
-                    // Skip the TNT node itself so the animation remains visible
                     if (nr === r && nc === c) continue;
-
                     if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
                         const target = this.grid[nr][nc];
                         if (target) {
                             this.grid[nr][nc] = null;
-                            // Pop the surrounding pieces
                             tween(target)
                                 .to(0.1, { scale: v3(0, 0, 0) }, { easing: 'sineIn' })
                                 .call(() => { if(target.isValid) target.destroy(); })
@@ -186,22 +251,15 @@ export class GridController extends Component {
                     }
                 }
             }
-        }, 0.45); // The 0.35s delay to match the explosion animation timing
+        }, 0.45);
 
-        // 3. Destroy the TNT node after its full 1.35s animation finishes
         this.scheduleOnce(() => {
             if (tntNode && tntNode.isValid) {
-                tween(tntNode)
-                    .to(0.1, { scale: v3(0, 0, 0) })
-                    .call(() => tntNode.destroy())
-                    .start();
+                tween(tntNode).to(0.1, { scale: v3(0, 0, 0) }).call(() => tntNode.destroy()).start();
             }
         }, 1.35);
 
-        // 4. Trigger gravity after the full animation is done
-        this.scheduleOnce(() => {
-            this.applyGravity();
-        }, 1.4); 
+        this.scheduleOnce(() => { this.applyGravity(); }, 1.4); 
     }
 
     private applyGravity() {
@@ -214,7 +272,6 @@ export class GridController extends Component {
                         if (upperNode) {
                             const p = upperNode.getComponent(GridPiece);
                             if (!p) break; 
-                            
                             this.grid[r][c] = upperNode;
                             this.grid[k][c] = null;
                             p.row = r;
@@ -228,9 +285,7 @@ export class GridController extends Component {
                 }
             }
         }
-        this.scheduleOnce(() => {
-            this.refillGrid(false);
-        }, longestMove + 0.05);
+        this.scheduleOnce(() => { this.refillGrid(false); }, longestMove + 0.05);
     }
 
     private refillGrid(isInitial: boolean = false) {
@@ -240,7 +295,6 @@ export class GridController extends Component {
 
         for (let c = 0; c < this.cols; c++) {
             if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) continue;
-
             for (let r = this.rows - 1; r >= 0; r--) {
                 if (this.grid[r][c] === null) {
                     let blockedFromAbove = false;
@@ -250,7 +304,6 @@ export class GridController extends Component {
                             break;
                         }
                     }
-
                     if (!blockedFromAbove) {
                         const delay = spawnCount * interval;
                         this.spawnBallAtTop(c, r, delay, isInitial);
@@ -266,7 +319,6 @@ export class GridController extends Component {
     private spawnBallAtTop(c: number, targetRow: number, delay: number, isInitial: boolean) {
         this.scheduleOnce(() => {
             let prefabIdx: number;
-
             if (isInitial && this.initialSpawnQueue.length > 0) {
                 prefabIdx = this.initialSpawnQueue.shift()!;
                 if (prefabIdx >= this.ballPrefabs.length) prefabIdx = 0;
@@ -289,23 +341,35 @@ export class GridController extends Component {
 
             ball.setPosition(v3(startX, startY, 0));
             this.grid[targetRow][c] = ball;
-            
             tween(ball).to(0.5, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' }).start();
         }, delay);
     }
 
     private spawnTNTItem(r: number, c: number) {
         if (!this.tntPrefab) { this.applyGravity(); return; }
-        const tnt = instantiate(this.tntPrefab);
-        tnt.parent = this.node;
-        const piece = tnt.getComponent(GridPiece) || tnt.addComponent(GridPiece);
-        piece.row = r; piece.col = c; piece.prefabName = "TNT";
+        this.createSpecialItem(this.tntPrefab, r, c, "TNT");
+    }
+
+    private spawnOrbItem(r: number, c: number, colorId: string = "") {
+        if (!this.orbPrefab) { this.applyGravity(); return; }
+        this.createSpecialItem(this.orbPrefab, r, c, "ORB", colorId);
+    }
+
+    private createSpecialItem(prefab: Prefab, r: number, c: number, name: string, colorId: string = "") {
+        const item = instantiate(prefab);
+        item.parent = this.node;
+        const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
+        piece.row = r; 
+        piece.col = c; 
+        piece.prefabName = name;
+        piece.colorId = colorId; // Store the colorId in the Orb's GridPiece
+        
         const offsetX = (this.cols - 1) * this.actualCellSize / 2;
         const offsetY = (this.rows - 1) * this.actualCellSize / 2;
-        tnt.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
-        tnt.setScale(v3(0, 0, 0));
-        this.grid[r][c] = tnt;
-        tween(tnt).to(0.2, { scale: v3(1, 1, 1) }, { easing: 'backOut' }).call(() => this.applyGravity()).start();
+        item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
+        item.setScale(v3(0, 0, 0));
+        this.grid[r][c] = item;
+        tween(item).to(0.2, { scale: v3(1, 1, 1) }, { easing: 'backOut' }).call(() => this.applyGravity()).start();
     }
 
     private checkAndDestroyAdjacentBlockers(r: number, c: number) {
