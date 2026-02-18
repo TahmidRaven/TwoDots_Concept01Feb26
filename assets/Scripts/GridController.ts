@@ -45,6 +45,7 @@ export class GridController extends Component {
                 const posX = (c * this.actualCellSize) - offsetX;
                 const posY = offsetY - (r * this.actualCellSize);
                 
+                // Note: activeRows/Cols logic defines where "holes" are for balls to fill
                 if (r < this.activeRows && c < this.activeCols) {
                     this.grid[r][c] = null;
                 } else {
@@ -78,7 +79,7 @@ export class GridController extends Component {
         if (!targetNode) return;
 
         const piece = targetNode.getComponent(GridPiece);
-        if (!piece) return;
+        if (!piece) return; // Cannot tap blockers
 
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
@@ -169,15 +170,23 @@ export class GridController extends Component {
         let longestMove = 0;
         for (let c = 0; c < this.cols; c++) {
             for (let r = this.rows - 1; r >= 0; r--) {
+                // If we find an empty spot
                 if (this.grid[r][c] === null) {
+                    // Look directly above for a movable piece
                     for (let k = r - 1; k >= 0; k--) {
                         const upperNode = this.grid[k][c];
-                        if (upperNode && !upperNode.getComponent(GridPiece)) break;
-                        if (upperNode && upperNode.getComponent(GridPiece)) {
+                        if (upperNode) {
+                            const p = upperNode.getComponent(GridPiece);
+                            // BUG FIX: If we hit a blocker node (no GridPiece), stop searching this column
+                            if (!p) {
+                                break; 
+                            }
+                            
+                            // It's a movable piece, move it down
                             this.grid[r][c] = upperNode;
                             this.grid[k][c] = null;
-                            const p = upperNode.getComponent(GridPiece)!;
                             p.row = r;
+                            
                             const targetY = (this.rows - 1) * this.actualCellSize / 2 - (r * this.actualCellSize);
                             const duration = 0.3;
                             tween(upperNode).to(duration, { position: v3(upperNode.position.x, targetY, 0) }, { easing: 'sineIn' }).start();
@@ -192,17 +201,32 @@ export class GridController extends Component {
     }
 
     private refillGrid(isInitial: boolean = false) {
-        let count = 0;
+        let spawnCount = 0;
         const interval = 0.08;
         let maxSpawnDelay = 0;
+
         for (let c = 0; c < this.cols; c++) {
-            if (this.grid[0][c] === null) {
-                for (let r = this.rows - 1; r >= 0; r--) {
-                    if (this.grid[r][c] === null) {
-                        const delay = count * interval;
+            // BUG FIX: Check if the very top row is blocked. If blocked, no balls can enter this column.
+            if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) {
+                continue; 
+            }
+
+            for (let r = this.rows - 1; r >= 0; r--) {
+                if (this.grid[r][c] === null) {
+                    // Only spawn if there is no blocker above this specific empty cell in the path
+                    let blockedFromAbove = false;
+                    for (let k = r - 1; k >= 0; k--) {
+                        if (this.grid[k][c] !== null && !this.grid[k][c].getComponent(GridPiece)) {
+                            blockedFromAbove = true;
+                            break;
+                        }
+                    } 
+
+                    if (!blockedFromAbove) {
+                        const delay = spawnCount * interval;
                         this.spawnBallAtTop(c, r, delay, isInitial);
                         maxSpawnDelay = Math.max(maxSpawnDelay, delay);
-                        count++;
+                        spawnCount++;
                     }
                 }
             }
@@ -216,18 +240,24 @@ export class GridController extends Component {
             const ball = instantiate(this.ballPrefabs[prefabIdx]);
             ball.parent = this.node;
             const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
-            piece.row = targetRow; piece.col = c;
+            piece.row = targetRow; 
+            piece.col = c;
             piece.prefabName = this.ballPrefabs[prefabIdx].name;
 
             const totalW = (this.cols - 1) * this.actualCellSize;
             const totalH = (this.rows - 1) * this.actualCellSize;
             const startX = (c * this.actualCellSize) - (totalW / 2);
+            
+            // Start just above the grid
             const startY = (totalH / 2) + 200;
             const targetY = (totalH / 2) - (targetRow * this.actualCellSize);
 
             ball.setPosition(v3(startX, startY, 0));
             this.grid[targetRow][c] = ball;
-            tween(ball).to(0.5, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' }).start();
+            
+            tween(ball)
+                .to(0.5, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' })
+                .start();
         }, delay);
     }
 
@@ -251,6 +281,7 @@ export class GridController extends Component {
             const nr = r + dir.dr, nc = c + dir.dc;
             if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
                 const neighbor = this.grid[nr][nc];
+                // If neighbor is a blocker (no GridPiece), destroy it
                 if (neighbor && !neighbor.getComponent(GridPiece)) {
                     this.grid[nr][nc] = null;
                     tween(neighbor).to(0.2, { scale: v3(0, 0, 0) }).call(() => neighbor.destroy()).start();
