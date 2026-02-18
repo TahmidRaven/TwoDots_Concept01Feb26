@@ -17,8 +17,25 @@ export class GridController extends Component {
     private actualCellSize: number = 83;
     private isProcessing: boolean = false;
 
+    // The sequence of prefab indices to use for the initial spawn
+    private initialSpawnQueue: number[] = [];
+
     onLoad() {
         input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
+        this.prepareSpawnQueue();
+    }
+
+    private prepareSpawnQueue() {
+        // Based on your request: 3 same, 3 other same, 2 same, 4 same, 3 same
+        // Indices refer to your ballPrefabs array (0, 1, 2, etc.)
+        const pattern = [
+            ...Array(3).fill(0), // 3 of index 0
+            ...Array(3).fill(1), // 3 of index 1
+            ...Array(2).fill(2), // 2 of index 2
+            ...Array(4).fill(0), // 4 of index 0
+            ...Array(3).fill(1)  // 3 of index 1
+        ];
+        this.initialSpawnQueue = pattern;
     }
 
     public initGrid() {
@@ -45,7 +62,6 @@ export class GridController extends Component {
                 const posX = (c * this.actualCellSize) - offsetX;
                 const posY = offsetY - (r * this.actualCellSize);
                 
-                // Note: activeRows/Cols logic defines where "holes" are for balls to fill
                 if (r < this.activeRows && c < this.activeCols) {
                     this.grid[r][c] = null;
                 } else {
@@ -79,7 +95,7 @@ export class GridController extends Component {
         if (!targetNode) return;
 
         const piece = targetNode.getComponent(GridPiece);
-        if (!piece) return; // Cannot tap blockers
+        if (!piece) return;
 
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
@@ -140,7 +156,7 @@ export class GridController extends Component {
         const anim = tntNode.getComponent(Animation);
         if (anim) {
             anim.play();
-            this.scheduleOnce(() => this.executeExplosion(r, c, tntNode), 0.5);
+            this.scheduleOnce(() => this.executeExplosion(r, c, tntNode), 1.35);
         } else {
             this.executeExplosion(r, c, tntNode);
         }
@@ -170,23 +186,16 @@ export class GridController extends Component {
         let longestMove = 0;
         for (let c = 0; c < this.cols; c++) {
             for (let r = this.rows - 1; r >= 0; r--) {
-                // If we find an empty spot
                 if (this.grid[r][c] === null) {
-                    // Look directly above for a movable piece
                     for (let k = r - 1; k >= 0; k--) {
                         const upperNode = this.grid[k][c];
                         if (upperNode) {
                             const p = upperNode.getComponent(GridPiece);
-                            // BUG FIX: If we hit a blocker node (no GridPiece), stop searching this column
-                            if (!p) {
-                                break; 
-                            }
+                            if (!p) break; 
                             
-                            // It's a movable piece, move it down
                             this.grid[r][c] = upperNode;
                             this.grid[k][c] = null;
                             p.row = r;
-                            
                             const targetY = (this.rows - 1) * this.actualCellSize / 2 - (r * this.actualCellSize);
                             const duration = 0.3;
                             tween(upperNode).to(duration, { position: v3(upperNode.position.x, targetY, 0) }, { easing: 'sineIn' }).start();
@@ -197,7 +206,11 @@ export class GridController extends Component {
                 }
             }
         }
-        this.scheduleOnce(() => this.refillGrid(false), longestMove + 0.05);
+        this.scheduleOnce(() => {
+            // After gravity, we refill. These are NOT initial spawns usually, 
+            // but you can decide if you want them random or patterned.
+            this.refillGrid(false);
+        }, longestMove + 0.05);
     }
 
     private refillGrid(isInitial: boolean = false) {
@@ -206,21 +219,17 @@ export class GridController extends Component {
         let maxSpawnDelay = 0;
 
         for (let c = 0; c < this.cols; c++) {
-            // BUG FIX: Check if the very top row is blocked. If blocked, no balls can enter this column.
-            if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) {
-                continue; 
-            }
+            if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) continue;
 
             for (let r = this.rows - 1; r >= 0; r--) {
                 if (this.grid[r][c] === null) {
-                    // Only spawn if there is no blocker above this specific empty cell in the path
                     let blockedFromAbove = false;
                     for (let k = r - 1; k >= 0; k--) {
                         if (this.grid[k][c] !== null && !this.grid[k][c].getComponent(GridPiece)) {
                             blockedFromAbove = true;
                             break;
                         }
-                    } 
+                    }
 
                     if (!blockedFromAbove) {
                         const delay = spawnCount * interval;
@@ -236,7 +245,18 @@ export class GridController extends Component {
 
     private spawnBallAtTop(c: number, targetRow: number, delay: number, isInitial: boolean) {
         this.scheduleOnce(() => {
-            let prefabIdx = Math.floor(Math.random() * this.ballPrefabs.length);
+            let prefabIdx: number;
+
+            // If we are in the initial setup and have items in our queue, use them
+            if (isInitial && this.initialSpawnQueue.length > 0) {
+                prefabIdx = this.initialSpawnQueue.shift()!;
+                // Safety check: make sure the index is valid for your ballPrefabs array
+                if (prefabIdx >= this.ballPrefabs.length) prefabIdx = 0;
+            } else {
+                // Otherwise, proceed with random
+                prefabIdx = Math.floor(Math.random() * this.ballPrefabs.length);
+            }
+
             const ball = instantiate(this.ballPrefabs[prefabIdx]);
             ball.parent = this.node;
             const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
@@ -247,17 +267,13 @@ export class GridController extends Component {
             const totalW = (this.cols - 1) * this.actualCellSize;
             const totalH = (this.rows - 1) * this.actualCellSize;
             const startX = (c * this.actualCellSize) - (totalW / 2);
-            
-            // Start just above the grid
             const startY = (totalH / 2) + 200;
             const targetY = (totalH / 2) - (targetRow * this.actualCellSize);
 
             ball.setPosition(v3(startX, startY, 0));
             this.grid[targetRow][c] = ball;
             
-            tween(ball)
-                .to(0.5, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' })
-                .start();
+            tween(ball).to(0.5, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' }).start();
         }, delay);
     }
 
@@ -281,7 +297,6 @@ export class GridController extends Component {
             const nr = r + dir.dr, nc = c + dir.dc;
             if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
                 const neighbor = this.grid[nr][nc];
-                // If neighbor is a blocker (no GridPiece), destroy it
                 if (neighbor && !neighbor.getComponent(GridPiece)) {
                     this.grid[nr][nc] = null;
                     tween(neighbor).to(0.2, { scale: v3(0, 0, 0) }).call(() => neighbor.destroy()).start();
