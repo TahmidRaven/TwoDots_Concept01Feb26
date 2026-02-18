@@ -147,7 +147,7 @@
     "__prefab": {
       "__id__": 7
     },
-    "playOnLoad": true,
+    "playOnLoad": false,
     "_clips": [
       {
         "__uuid__": "7aa1d8d7-6f1b-4ece-bc90-d9a56768983a",
@@ -162,7 +162,7 @@
   },
   {
     "__type__": "cc.CompPrefabInfo",
-    "fileId": "d9u1cO+MBDqa9PQbavW89s"
+    "fileId": "35oA+tn4VGsaD9FgnEUtQp"
   },
   {
     "__type__": "cc.PrefabInfo",

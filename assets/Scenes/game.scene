@@ -609,7 +609,7 @@
   },
   {
     "__type__": "cc.Node",
-    "_name": "TNT",
+    "_name": "TNT_Anim",
     "_objFlags": 0,
     "__editorExtras__": {},
     "_parent": {
