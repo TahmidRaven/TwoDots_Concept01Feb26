@@ -17,7 +17,6 @@ export class GridController extends Component {
     private actualCellSize: number = 83;
     private isProcessing: boolean = false;
 
-    // The sequence of prefab indices to use for the initial spawn
     private initialSpawnQueue: number[] = [];
 
     onLoad() {
@@ -26,14 +25,12 @@ export class GridController extends Component {
     }
 
     private prepareSpawnQueue() {
-        // Based on your request: 3 same, 3 other same, 2 same, 4 same, 3 same
-        // Indices refer to your ballPrefabs array (0, 1, 2, etc.)
         const pattern = [
-            ...Array(3).fill(0), // 3 of index 0
-            ...Array(3).fill(1), // 3 of index 1
-            ...Array(2).fill(2), // 2 of index 2
-            ...Array(4).fill(0), // 4 of index 0
-            ...Array(3).fill(1)  // 3 of index 1
+            ...Array(3).fill(0), 
+            ...Array(3).fill(1), 
+            ...Array(2).fill(2), 
+            ...Array(4).fill(0), 
+            ...Array(3).fill(1)  
         ];
         this.initialSpawnQueue = pattern;
     }
@@ -153,33 +150,58 @@ export class GridController extends Component {
     private triggerTNT(r: number, c: number) {
         const tntNode = this.grid[r][c];
         if (!tntNode) return;
+
         const anim = tntNode.getComponent(Animation);
         if (anim) {
             anim.play();
-            this.scheduleOnce(() => this.executeExplosion(r, c, tntNode), 1.35);
-        } else {
-            this.executeExplosion(r, c, tntNode);
         }
+        
+        // Execute the explosion logic immediately so visuals sync up
+        this.executeExplosion(r, c, tntNode);
     }
 
     private executeExplosion(r: number, c: number, tntNode: Node) {
-        for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-                const nr = r + dr, nc = c + dc;
-                if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-                    const target = this.grid[nr][nc];
-                    if (target) {
-                        this.grid[nr][nc] = null;
-                        tween(target)
-                            .to(0.15, { scale: v3(0, 0, 0) }, { easing: 'sineIn' })
-                            .call(() => { if(target.isValid) target.destroy(); })
-                            .start();
+        // 1. Immediately remove TNT from grid logic so gravity knows the space is reserved
+        this.grid[r][c] = null;
+
+        // 2. Delay the "Blast" logic by 0.35 seconds
+        this.scheduleOnce(() => {
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr, nc = c + dc;
+                    
+                    // Skip the TNT node itself so the animation remains visible
+                    if (nr === r && nc === c) continue;
+
+                    if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
+                        const target = this.grid[nr][nc];
+                        if (target) {
+                            this.grid[nr][nc] = null;
+                            // Pop the surrounding pieces
+                            tween(target)
+                                .to(0.1, { scale: v3(0, 0, 0) }, { easing: 'sineIn' })
+                                .call(() => { if(target.isValid) target.destroy(); })
+                                .start();
+                        }
                     }
                 }
             }
-        }
-        if (tntNode.isValid) tntNode.destroy();
-        this.scheduleOnce(() => this.applyGravity(), 0.2);
+        }, 0.45); // The 0.35s delay to match the explosion animation timing
+
+        // 3. Destroy the TNT node after its full 1.35s animation finishes
+        this.scheduleOnce(() => {
+            if (tntNode && tntNode.isValid) {
+                tween(tntNode)
+                    .to(0.1, { scale: v3(0, 0, 0) })
+                    .call(() => tntNode.destroy())
+                    .start();
+            }
+        }, 1.35);
+
+        // 4. Trigger gravity after the full animation is done
+        this.scheduleOnce(() => {
+            this.applyGravity();
+        }, 1.4); 
     }
 
     private applyGravity() {
@@ -207,8 +229,6 @@ export class GridController extends Component {
             }
         }
         this.scheduleOnce(() => {
-            // After gravity, we refill. These are NOT initial spawns usually, 
-            // but you can decide if you want them random or patterned.
             this.refillGrid(false);
         }, longestMove + 0.05);
     }
@@ -247,13 +267,10 @@ export class GridController extends Component {
         this.scheduleOnce(() => {
             let prefabIdx: number;
 
-            // If we are in the initial setup and have items in our queue, use them
             if (isInitial && this.initialSpawnQueue.length > 0) {
                 prefabIdx = this.initialSpawnQueue.shift()!;
-                // Safety check: make sure the index is valid for your ballPrefabs array
                 if (prefabIdx >= this.ballPrefabs.length) prefabIdx = 0;
             } else {
-                // Otherwise, proceed with random
                 prefabIdx = Math.floor(Math.random() * this.ballPrefabs.length);
             }
 
