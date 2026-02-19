@@ -3287,6 +3287,12 @@
     "blockersLabel": {
       "__id__": 26
     },
+    "movesTextLabel": {
+      "__id__": 38
+    },
+    "bricksTextLabel": {
+      "__id__": 29
+    },
     "victoryScreen": {
       "__id__": 85
     },

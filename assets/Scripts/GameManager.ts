@@ -7,8 +7,14 @@ export class GameManager extends Component {
     public static instance: GameManager = null;
 
     @property(GridController) gridController: GridController = null;
-    @property(Label) movesLabel: Label = null;
-    @property(Label) blockersLabel: Label = null;
+    
+    // Number Labels
+    @property(Label) movesLabel: Label = null; 
+    @property(Label) blockersLabel: Label = null; 
+
+    // Text Labels (for pluralization)
+    @property(Label) movesTextLabel: Label = null; 
+    @property(Label) bricksTextLabel: Label = null; 
     
     @property(Node) victoryScreen: Node = null;
 
@@ -20,8 +26,8 @@ export class GameManager extends Component {
     @property({ type: CCInteger }) totalOrbAllowed: number = 15;
 
     private _isGameOver: boolean = false;
-    private _currentMoves: number = 200;
-    private _remainingBlockers: number = 66; 
+    private _currentMoves: number = 200; // Matches your UI screenshot
+    private _remainingBlockers: number = 66; // Matches your UI screenshot
 
     private _currentTntUsed: number = 0;
     private _currentOrbUsed: number = 0;
@@ -61,7 +67,7 @@ export class GameManager extends Component {
     }
 
     /**
-     * Increments the count and updates UI (Spinning removed)
+     * Increments the count and updates UI
      */
     public registerPowerupUsed(type: "TNT" | "ORB") {
         if (type === "TNT") this._currentTntUsed++;
@@ -88,9 +94,23 @@ export class GameManager extends Component {
     }
 
     private updateUI() {
-        if (this.movesLabel) this.movesLabel.string = `${this._currentMoves}`;
-        if (this.blockersLabel) this.blockersLabel.string = `${this._remainingBlockers}`;
+        // Update Move Count and Pluralization
+        if (this.movesLabel) {
+            this.movesLabel.string = `${this._currentMoves}`;
+        }
+        if (this.movesTextLabel) {
+            this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
+        }
+
+        // Update Blocker Count and Pluralization
+        if (this.blockersLabel) {
+            this.blockersLabel.string = `${this._remainingBlockers}`;
+        }
+        if (this.bricksTextLabel) {
+            this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
+        }
         
+        // Power-up UI
         if (this.tntCountLabel) {
             this.tntCountLabel.string = `${this._currentTntUsed}/${this.totalTntAllowed}`;
         }
