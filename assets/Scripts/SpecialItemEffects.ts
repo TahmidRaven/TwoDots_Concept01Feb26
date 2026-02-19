@@ -1,9 +1,9 @@
-import { Node, v3, tween, Animation, UIOpacity, isValid } from 'cc';
+import { Node, v3, Vec3, tween, Animation, UIOpacity, isValid } from 'cc';
 import { GridPiece } from './GridPiece';
 import { GameManager } from './GameManager';
 
 export class SpecialItemEffects {
-    public static executeOrb(r: number, c: number, grid: (Node | null)[][], rows: number, cols: number, onComplete: () => void) {
+    public static executeOrb(r: number, c: number, grid: (Node | null)[][], rows: number, cols: number, playEffect: (pos: Vec3, colorId: string) => void, onComplete: () => void) {
         const orbNode = grid[r][c];
         if (!orbNode) return;
         const orbPiece = orbNode.getComponent(GridPiece);
@@ -31,8 +31,12 @@ export class SpecialItemEffects {
                 if (!node) continue;
                 const piece = node.getComponent(GridPiece);
                 if (piece && piece.colorId === targetColorId) {
+                    const pos = v3(node.position);
                     grid[row][col] = null;
-                    tween(node).to(0.2, { scale: v3(0, 0, 0) }).call(() => node.destroy()).start();
+                    tween(node).to(0.2, { scale: v3(0, 0, 0) }).call(() => {
+                        playEffect(pos, targetColorId);
+                        node.destroy();
+                    }).start();
                 }
             }
         }
@@ -42,7 +46,7 @@ export class SpecialItemEffects {
         tween(uiOpacity).to(0.3, { opacity: 0 }).start();
     }
 
-    public static executeTNT(r: number, c: number, grid: (Node | null)[][], rows: number, cols: number, onComplete: () => void) {
+    public static executeTNT(r: number, c: number, grid: (Node | null)[][], rows: number, cols: number, playEffect: (pos: Vec3, colorId: string) => void, onComplete: () => void) {
         const tntNode = grid[r][c];
         if (!tntNode) return;
         const anim = tntNode.getComponent(Animation);
@@ -56,12 +60,21 @@ export class SpecialItemEffects {
                     if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
                         const target = grid[nr][nc];
                         if (target) {
-                            // Detect blocker and count down
-                            if (!target.getComponent(GridPiece) && GameManager.instance) {
+                            const pos = v3(target.position);
+                            const piece = target.getComponent(GridPiece);
+                            const colorId = piece ? piece.colorId : "blocker";
+
+                            if (!piece && GameManager.instance) {
                                 GameManager.instance.registerBlockerDestroyed();
                             }
+
                             grid[nr][nc] = null;
-                            tween(target).to(0.1, { scale: v3(0, 0, 0) }).call(() => { if (isValid(target)) target.destroy(); }).start();
+                            tween(target).to(0.1, { scale: v3(0, 0, 0) }).call(() => { 
+                                if (isValid(target)) {
+                                    playEffect(pos, colorId);
+                                    target.destroy(); 
+                                }
+                            }).start();
                         }
                     }
                 }

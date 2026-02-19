@@ -70,10 +70,10 @@ export class GameManager extends Component {
 
     private updateUI() {
         if (this.movesLabel) {
-            this.movesLabel.string = `Moves: ${this._currentMoves}`;
+            this.movesLabel.string = `${this._currentMoves}`;
         }
         if (this.blockersLabel) {
-            this.blockersLabel.string = `Bricks: ${this._remainingBlockers}`;
+            this.blockersLabel.string = `${this._remainingBlockers}`;
         }
     }
 

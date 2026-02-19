@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, tween } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite } from 'cc';
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
@@ -11,6 +11,8 @@ export class GridController extends Component {
     @property(Prefab) tntPrefab: Prefab = null;
     @property(Prefab) orbPrefab: Prefab = null; 
     
+    @property(Prefab) blockDestroyPrefab: Prefab = null;
+
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
 
@@ -87,13 +89,13 @@ export class GridController extends Component {
 
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
-            SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, () => this.applyGravity());
+            SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity());
             return;
         }
 
         if (piece.prefabName === "ORB") {
             this.isProcessing = true;
-            SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, () => this.applyGravity());
+            SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity());
             return;
         }
 
@@ -112,7 +114,7 @@ export class GridController extends Component {
             const node = this.grid[row][col];
             if (!node || matches.indexOf(node) !== -1) return;
             const piece = node.getComponent(GridPiece);
-            if (piece && piece.prefabName === typeToMatch) {
+            if (piece && piece.prefabName === typeToMatch && piece.colorId === colorToMatch) {
                 matches.push(node);
                 findMatches(row + 1, col); findMatches(row - 1, col);
                 findMatches(row, col + 1); findMatches(row, col - 1);
@@ -125,12 +127,16 @@ export class GridController extends Component {
             this.isProcessing = true;
             matches.forEach((node, index) => {
                 const p = node.getComponent(GridPiece)!;
+                const pos = v3(node.position);
+                const colorId = p.colorId;
+
                 this.checkAndDestroyAdjacentBlockers(p.row, p.col);
                 this.grid[p.row][p.col] = null;
 
                 tween(node)
                     .to(0.08, { scale: v3(0, 0, 0) })
                     .call(() => {
+                        this.playEffect(pos, colorId);
                         node.destroy();
                         if (index === matches.length - 1) {
                             if (matches.length === 3) this.spawnTNTItem(r, c);
@@ -141,6 +147,68 @@ export class GridController extends Component {
                     .start();
             });
         }
+    }
+
+    /**
+     * Corrected playEffect method with proper imports
+     */
+    public playEffect(pos: Vec3, colorId: string) {
+        if (!this.blockDestroyPrefab) return;
+
+        const effect = instantiate(this.blockDestroyPrefab);
+        effect.parent = this.node;
+        effect.setPosition(pos);
+
+        // Map the string colorId to a hex color
+        const colorMap: { [key: string]: string } = {
+            "blue": "#3498db",
+            "red": "#e74c3c",
+            "green": "#2ecc71",
+            "yellow": "#f1c40f",
+            "blocker": "#95a5a6" 
+        };
+
+        const hex = colorMap[colorId] || "#ffffff";
+        
+        // Use imported Sprite class directly
+        const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);
+        if (sprite) {
+            sprite.color = new Color().fromHEX(hex);
+        }
+
+        const anim = effect.getComponent(Animation);
+        if (anim) {
+            // Using the string name directly for play
+            anim.play('blockDestoryAnimation');
+            anim.on(Animation.EventType.FINISHED, () => {
+                if (isValid(effect)) effect.destroy();
+            });
+        } else {
+            this.scheduleOnce(() => { if (isValid(effect)) effect.destroy(); }, 0.5);
+        }
+    }
+
+    private checkAndDestroyAdjacentBlockers(r: number, c: number) {
+        const directions = [{dr:1,dc:0}, {dr:-1,dc:0}, {dr:0,dc:1}, {dr:0,dc:-1}];
+        directions.forEach(dir => {
+            const nr = r + dir.dr, nc = c + dir.dc;
+            if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
+                const neighbor = this.grid[nr][nc];
+                if (neighbor && !neighbor.getComponent(GridPiece)) {
+                    const pos = v3(neighbor.position);
+                    this.grid[nr][nc] = null;
+                    if (GameManager.instance) GameManager.instance.registerBlockerDestroyed();
+                    
+                    tween(neighbor)
+                        .to(0.2, { scale: v3(0, 0, 0) })
+                        .call(() => {
+                            this.playEffect(pos, "blocker");
+                            neighbor.destroy();
+                        })
+                        .start();
+                }
+            }
+        });
     }
 
     private applyGravity() {
@@ -245,20 +313,5 @@ export class GridController extends Component {
         item.setScale(v3(0, 0, 0));
         this.grid[r][c] = item;
         tween(item).to(0.2, { scale: v3(1, 1, 1) }, { easing: 'backOut' }).call(() => this.applyGravity()).start();
-    }
-
-    private checkAndDestroyAdjacentBlockers(r: number, c: number) {
-        const directions = [{dr:1,dc:0}, {dr:-1,dc:0}, {dr:0,dc:1}, {dr:0,dc:-1}];
-        directions.forEach(dir => {
-            const nr = r + dir.dr, nc = c + dir.dc;
-            if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-                const neighbor = this.grid[nr][nc];
-                if (neighbor && !neighbor.getComponent(GridPiece)) {
-                    this.grid[nr][nc] = null;
-                    if (GameManager.instance) GameManager.instance.registerBlockerDestroyed();
-                    tween(neighbor).to(0.2, { scale: v3(0, 0, 0) }).call(() => neighbor.destroy()).start();
-                }
-            }
-        });
     }
 }
