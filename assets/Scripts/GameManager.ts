@@ -1,27 +1,32 @@
-import { _decorator, Component, Label, Node, CCInteger } from 'cc';
+import { _decorator, Component, Label, Node, CCInteger, AudioSource } from 'cc';
 import { GridController } from './GridController';
 import { VictoryScreen } from './VictoryScreen'; 
+import { AudioContent } from './AudioContent'; // Import your AudioContent component
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
 export class GameManager extends Component {
-    public static instance: GameManager = null;
+    public static instance: GameManager = null!;
 
-    @property(GridController) gridController: GridController = null;
+    @property(GridController) gridController: GridController = null!;
     
-    @property(Label) movesLabel: Label = null; 
-    @property(Label) blockersLabel: Label = null; 
+    @property(Label) movesLabel: Label = null!; 
+    @property(Label) blockersLabel: Label = null!; 
 
-    @property(Label) movesTextLabel: Label = null; 
-    @property(Label) bricksTextLabel: Label = null; 
+    @property(Label) movesTextLabel: Label = null!; 
+    @property(Label) bricksTextLabel: Label = null!; 
     
-    @property(Node) victoryScreen: Node = null;
+    @property(Node) victoryScreen: Node = null!;
 
-    @property(Label) tntCountLabel: Label = null; 
-    @property({ type: CCInteger }) totalTntAllowed: number = 15;
+    @property(Label) tntCountLabel: Label = null!; 
+    @property({ type: CCInteger }) totalTntAllowed: number = 30;
 
-    @property(Label) orbCountLabel: Label = null; 
-    @property({ type: CCInteger }) totalOrbAllowed: number = 15;
+    @property(Label) orbCountLabel: Label = null!; 
+    @property({ type: CCInteger }) totalOrbAllowed: number = 30;
+
+    // --- AUDIO LIST REFERENCE ---
+    @property([AudioContent])
+    public audioList: AudioContent[] = [];
 
     private _isGameOver: boolean = false;
     private _currentMoves: number = 200; 
@@ -32,10 +37,31 @@ export class GameManager extends Component {
 
     onLoad() {
         GameManager.instance = this;
-        // Ensure the victory screen is hidden at start
         if (this.victoryScreen) {
             this.victoryScreen.active = false;
         }
+
+        // 1. Initialize AudioSources for all nodes in the list
+        this.audioList.forEach(content => {
+            if (content && content.AudioClip) {
+                // Ensure the node has an AudioSource and map it
+                let source = content.getComponent(AudioSource);
+                if (!source) {
+                    source = content.addComponent(AudioSource);
+                }
+                
+                source.clip = content.AudioClip;
+                source.loop = content.Loop;
+                source.volume = content.Volume;
+                source.playOnAwake = false; // We control this manually
+                
+                content.AudioSource = source;
+
+                if (content.PlayOnLoad) {
+                    source.play();
+                }
+            }
+        });
     }
 
     start() {
@@ -43,16 +69,42 @@ export class GameManager extends Component {
         if (this.gridController) {
             this.gridController.initGrid();
         }
+
+        // 2. Play BGM explicitly on start
+        this.playAudio("BGM");
     }
+
+    /**
+     * Plays audio by searching for the AudioName string in the audioList array
+     */
+    public playAudio(name: string) {
+        const content = this.audioList.find(a => a.AudioName === name);
+        if (content && content.AudioSource) {
+            content.AudioSource.play();
+            
+            if (content.OnPlayingStart) {
+                content.OnPlayingStart.emit([content]);
+            }
+        } else {
+            console.warn(`[GameManager] Audio name "${name}" not found in audioList.`);
+        }
+    }
+
+    public stopAudio(name: string) {
+        const content = this.audioList.find(a => a.AudioName === name);
+        if (content && content.AudioSource) {
+            content.AudioSource.stop();
+        }
+    }
+
+    // ... (rest of your logic for moves and blockers remains the same)
 
     public decrementMoves() {
         if (this._isGameOver) return;
         this._currentMoves--;
         this.updateUI();
 
-        // FAIL CONDITION: Out of moves while blockers remain
         if (this._currentMoves <= 0 && this._remainingBlockers > 0) {
-            console.log("[GameManager] Triggering Fail Screen");
             this.showGameOver(false); 
         }
     }
@@ -64,39 +116,27 @@ export class GameManager extends Component {
             this.updateUI();
         }
 
-        // WIN CONDITION: All blockers cleared
         if (this._remainingBlockers === 0) {
-            console.log("[GameManager] Triggering Win Screen");
             this.showGameOver(true);
         }
     }
 
-private showGameOver(isWin: boolean) {
-    if (this._isGameOver) return;
-    this._isGameOver = true;
+    private showGameOver(isWin: boolean) {
+        if (this._isGameOver) return;
+        this._isGameOver = true;
 
-    if (this.victoryScreen) {
-        // 1. Force the node active immediately
-        this.victoryScreen.active = true;
+        if (this.victoryScreen) {
+            this.victoryScreen.active = true;
+            if (this.node.parent) {
+                this.victoryScreen.setSiblingIndex(this.victoryScreen.parent.children.length - 1);
+            }
 
-        // 2. Ensure it is at the very front of the Canvas
-        if (this.node.parent) {
-            this.victoryScreen.setSiblingIndex(this.victoryScreen.parent.children.length - 1);
+            const vsComp = this.victoryScreen.getComponent(VictoryScreen);
+            if (vsComp) {
+                vsComp.show(isWin); 
+            }
         }
-
-        const vsComp = this.victoryScreen.getComponent(VictoryScreen);
-        if (vsComp) {
-            console.log("[GameManager] Executing VictoryScreen.show()");
-            vsComp.show(isWin); 
-        } else {
-            // Fallback: If component is missing, at least center and scale it
-            this.victoryScreen.setPosition(0, 0, 0);
-            this.victoryScreen.setScale(1, 1, 1);
-        }
-    } else {
-        console.error("[GameManager] victoryScreen property is not assigned in the Inspector!");
     }
-}
 
     public registerPowerupUsed(type: "TNT" | "ORB") {
         if (type === "TNT") this._currentTntUsed++;

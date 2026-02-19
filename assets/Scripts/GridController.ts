@@ -170,6 +170,10 @@ export class GridController extends Component {
         const effect = instantiate(this.blockDestroyPrefab);
         effect.parent = this.node;
         effect.setPosition(pos);
+    
+        if (GameManager.instance) {
+        GameManager.instance.playAudio("BrickDestroy"); 
+    }
 
         const colorMap: { [key: string]: string } = {
             "blue": "#3498db", "red": "#e74c3c", "green": "#2ecc71", "yellow": "#f1c40f", "blocker": "#95a5a6" 
