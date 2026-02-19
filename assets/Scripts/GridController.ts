@@ -14,10 +14,8 @@ export class GridController extends Component {
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
 
-    // 5x3 = 15 balls, leaving 66 blockers in a 9x9 grid
     private activeRows: number = 5;
     private activeCols: number = 3;
-    
     private grid: (Node | null)[][] = [];
     private actualCellSize: number = 83;
     private isProcessing: boolean = false;
@@ -64,7 +62,8 @@ export class GridController extends Component {
     }
 
     private onGridTouch(event: EventTouch) {
-        if (this.isProcessing) return;
+        if (this.isProcessing || (GameManager.instance && GameManager.instance.isGameOver)) return;
+
         const uiTransform = this.node.getComponent(UITransform);
         const localPos = uiTransform.convertToNodeSpaceAR(v3(event.getUILocation().x, event.getUILocation().y, 0));
         const totalW = (this.cols - 1) * this.actualCellSize;
@@ -256,7 +255,6 @@ export class GridController extends Component {
                 const neighbor = this.grid[nr][nc];
                 if (neighbor && !neighbor.getComponent(GridPiece)) {
                     this.grid[nr][nc] = null;
-                    // Trigger countdown in GameManager
                     if (GameManager.instance) GameManager.instance.registerBlockerDestroyed();
                     tween(neighbor).to(0.2, { scale: v3(0, 0, 0) }).call(() => neighbor.destroy()).start();
                 }

@@ -1,4 +1,4 @@
-import { _decorator, Component, Label } from 'cc';
+import { _decorator, Component, Label, Node } from 'cc';
 import { GridController } from './GridController';
 const { ccclass, property } = _decorator;
 
@@ -9,15 +9,19 @@ export class GameManager extends Component {
     @property(GridController) gridController: GridController = null;
     @property(Label) movesLabel: Label = null;
     @property(Label) blockersLabel: Label = null;
+    
+    // Drag your Victory Node here in the Inspector
+    @property(Node) victoryScreen: Node = null;
 
     private _isGameOver: boolean = false;
     private _currentMoves: number = 200;
-    
-    // Initialized to 66 as requested (81 cells - 15 balls)
     private _remainingBlockers: number = 66; 
 
     onLoad() {
         GameManager.instance = this;
+        if (this.victoryScreen) {
+            this.victoryScreen.active = false; //hidden
+        }
     }
 
     start() {
@@ -29,26 +33,38 @@ export class GameManager extends Component {
 
     public decrementMoves() {
         if (this._isGameOver) return;
+        
         this._currentMoves--;
         this.updateUI();
         
         if (this._currentMoves <= 0) {
-            this._isGameOver = true;
-            console.log("Game Over - No moves left!");
+            // Victory regardless of blocker count
+            this.showVictory();
         }
     }
 
-    /**
-     * Counts down from 66 to 0 as blockers are destroyed
-     */
     public registerBlockerDestroyed() {
+        if (this._isGameOver) return;
+
         if (this._remainingBlockers > 0) {
             this._remainingBlockers--;
             this.updateUI();
         }
 
         if (this._remainingBlockers === 0) {
-            console.log("Level Clear! All blockers destroyed.");
+            this.showVictory();
+        }
+    }
+
+    private showVictory() {
+        if (this._isGameOver) return;
+        
+        this._isGameOver = true;
+        console.log("Game Ended - Showing Victory Screen");
+
+        if (this.victoryScreen) {
+            this.victoryScreen.active = true;
+            // You can add a scale-in tween here for a better transition
         }
     }
 
@@ -61,7 +77,7 @@ export class GameManager extends Component {
         }
     }
 
-    public get isProcessing(): boolean {
-        return this.gridController ? this.gridController.getProcessingStatus() : false;
+    public get isGameOver(): boolean {
+        return this._isGameOver;
     }
 }
