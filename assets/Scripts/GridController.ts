@@ -18,7 +18,6 @@ export class GridController extends Component {
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
 
-    // DRAG THE LIGHTNING LAYER NODE HERE IN THE INSPECTOR
     @property(LightningEffect) lightning: LightningEffect = null;
 
     private activeRows: number = 5;
@@ -31,7 +30,6 @@ export class GridController extends Component {
     onLoad() {
         input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
         this.prepareSpawnQueue();
-        // DO NOT use getComponent here; it would overwrite your Inspector link
     }
 
     private prepareSpawnQueue() {
@@ -93,12 +91,14 @@ export class GridController extends Component {
 
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
+            if (GameManager.instance) GameManager.instance.registerPowerupUsed("TNT"); 
             SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
             return;
         }
 
         if (piece.prefabName === "ORB") {
             this.isProcessing = true;
+            if (GameManager.instance) GameManager.instance.registerPowerupUsed("ORB");
             SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
             return;
         }
@@ -143,9 +143,14 @@ export class GridController extends Component {
                         this.playEffect(pos, colorId);
                         node.destroy();
                         if (index === matches.length - 1) {
-                            if (matches.length === 3) this.spawnTNTItem(r, c);
-                            else if (matches.length >= 4) this.spawnOrbItem(r, c, colorToMatch);
-                            else this.applyGravity();
+                            // Logic for restricted spawning
+                            if (matches.length === 3 && GameManager.instance && GameManager.instance.canSpawnTNT) {
+                                this.spawnTNTItem(r, c);
+                            } else if (matches.length >= 4 && GameManager.instance && GameManager.instance.canSpawnOrb) {
+                                this.spawnOrbItem(r, c, colorToMatch);
+                            } else {
+                                this.applyGravity();
+                            }
                         }
                     })
                     .start();
