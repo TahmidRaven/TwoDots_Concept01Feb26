@@ -20,7 +20,6 @@ export class SpecialItemEffects {
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
-        // Fallback: find the first available color on the grid
         if (!targetColorId) {
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
@@ -45,7 +44,6 @@ export class SpecialItemEffects {
         const orbUIT = orbNode.getComponent(UITransform);
         const orbWorldPos = orbUIT ? orbUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(orbNode.worldPosition);
 
-        // 1. Collect all targets
         const targets: {node: Node, pos: Vec3}[] = [];
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
@@ -59,16 +57,13 @@ export class SpecialItemEffects {
             }
         }
 
-        // Timing Configuration
-        const drawWindow = 0.3; // All lines finish drawing in 0.2s
-        const holdTime = 0.1;   // Hold all lines for 0.1s before destruction
+        const drawWindow = 0.3; 
+        const holdTime = 0.1;   
         const popDuration = 0.15;
         const stagger = targets.length > 1 ? drawWindow / (targets.length - 1) : 0;
 
-        // 2. Animate Targets
         targets.forEach((targetData, index) => {
             const startDrawDelay = index * stagger;
-            // Every item pops at the same time: (end of draw window + hold time)
             const syncPopDelay = (drawWindow - startDrawDelay) + holdTime;
 
             tween(targetData.node)
@@ -86,7 +81,7 @@ export class SpecialItemEffects {
                     }
                 })
                 .delay(syncPopDelay)
-                .to(0.05, { scale: v3(1.2, 1.2, 1.2) }) // Impact swell
+                .to(0.05, { scale: v3(1.2, 1.2, 1.2) }) 
                 .to(popDuration, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
                 .call(() => {
                     playEffect(targetData.pos, targetColorId);
@@ -95,19 +90,18 @@ export class SpecialItemEffects {
                 .start();
         });
 
-        // 3. Manage Orb and Lightning Web Cleanup
         const cleanupTriggerTime = drawWindow + holdTime;
 
         tween(orbNode)
-            .to(0.15, { scale: v3(1.25, 1.25, 1.25) }) // Cap scale at 1.25x
+            .to(0.15, { scale: v3(1.25, 1.25, 1.25) }) 
             .delay(cleanupTriggerTime)
             .call(() => {
-                if (lightning) lightning.clearWeb(); // Clear web exactly when items pop
+                if (lightning) lightning.clearWeb(); 
             })
             .to(0.1, { scale: v3(0, 0, 0) })
             .call(() => {
                 orbNode.destroy();
-                onComplete(); // Trigger gravity
+                onComplete(); 
             })
             .start();
     }

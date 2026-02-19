@@ -87,18 +87,23 @@ export class GridController extends Component {
         const piece = targetNode.getComponent(GridPiece);
         if (!piece) return;
 
-        if (GameManager.instance) GameManager.instance.decrementMoves();
-
+        // Logic updated: Decrement moves only for valid power-up use or confirmed matches
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
-            if (GameManager.instance) GameManager.instance.registerPowerupUsed("TNT"); 
+            if (GameManager.instance) {
+                GameManager.instance.decrementMoves();
+                GameManager.instance.registerPowerupUsed("TNT"); 
+            }
             SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
             return;
         }
 
         if (piece.prefabName === "ORB") {
             this.isProcessing = true;
-            if (GameManager.instance) GameManager.instance.registerPowerupUsed("ORB");
+            if (GameManager.instance) {
+                GameManager.instance.decrementMoves();
+                GameManager.instance.registerPowerupUsed("ORB");
+            }
             SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
             return;
         }
@@ -129,6 +134,12 @@ export class GridController extends Component {
 
         if (matches.length >= 2) {
             this.isProcessing = true;
+            
+            // Valid match found, decrement move
+            if (GameManager.instance) {
+                GameManager.instance.decrementMoves();
+            }
+
             matches.forEach((node, index) => {
                 const p = node.getComponent(GridPiece)!;
                 const pos = v3(node.position);
@@ -143,7 +154,6 @@ export class GridController extends Component {
                         this.playEffect(pos, colorId);
                         node.destroy();
                         if (index === matches.length - 1) {
-                            // Logic for restricted spawning
                             if (matches.length === 3 && GameManager.instance && GameManager.instance.canSpawnTNT) {
                                 this.spawnTNTItem(r, c);
                             } else if (matches.length >= 4 && GameManager.instance && GameManager.instance.canSpawnOrb) {
