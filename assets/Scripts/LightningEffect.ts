@@ -1,4 +1,4 @@
-import { _decorator, Component, Graphics, Vec3, Color } from 'cc';
+import { _decorator, Component, Graphics, Vec3, Color, isValid } from 'cc';
 const { ccclass } = _decorator;
 
 @ccclass('LightningEffect')
@@ -12,24 +12,26 @@ export class LightningEffect extends Component {
     public drawLightning(start: Vec3, end: Vec3, colorHex: string = "#82CAFF") {
         if (!this.graphics) return;
 
-        console.log(`Lightning triggering: from ${start.toString()} to ${end.toString()}`);
-
+        // Draw multiple times with slight randomness to create a "vibrating" bolt
         const segments = 6;
         const offset = 18;
 
-        // Draw Outer Glow
+        // Outer Glow
         this.graphics.strokeColor = new Color().fromHEX(colorHex);
         this.graphics.lineWidth = 12; 
         this.renderPath(start, end, segments, offset);
 
-        // Draw Inner Core
+        // Inner Core
         this.graphics.strokeColor = Color.WHITE;
         this.graphics.lineWidth = 3;
         this.renderPath(start, end, segments, offset);
 
+        // Clear after a short delay so the "web" effect is visible
         this.scheduleOnce(() => {
-            if (this.graphics) this.graphics.clear();
-        }, 0.1);
+            if (isValid(this.graphics)) {
+                this.graphics.clear();
+            }
+        }, 0.25); 
     }
 
     private renderPath(start: Vec3, end: Vec3, segments: number, offset: number) {

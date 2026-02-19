@@ -1,4 +1,4 @@
-import { Node, v3, Vec3, tween, Animation, UIOpacity, isValid } from 'cc';
+import { Node, v3, Vec3, tween, Animation, UIOpacity, isValid, UITransform } from 'cc';
 import { GridPiece } from './GridPiece';
 import { GameManager } from './GameManager';
 import { LightningEffect } from './LightningEffect';
@@ -36,11 +36,14 @@ export class SpecialItemEffects {
         grid[r][c] = null;
         if (!targetColorId) { orbNode.destroy(); onComplete(); return; }
 
-        // Neon high-contrast colors
         const colorMap: { [key: string]: string } = {
             "blue": "#00FFFF", "red": "#FF3131", "green": "#39FF14", "yellow": "#FFF01F"
         };
         const hex = colorMap[targetColorId] || "#FFFFFF";
+
+        // Get Orb World Position once
+        const orbUIT = orbNode.getComponent(UITransform);
+        const orbWorldPos = orbUIT ? orbUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(orbNode.worldPosition);
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
@@ -48,13 +51,21 @@ export class SpecialItemEffects {
                 if (!node) continue;
                 
                 const piece = node.getComponent(GridPiece);
+                // Trigger lightning for EVERY ball that matches the color
                 if (piece && piece.colorId === targetColorId) {
                     const pos = v3(node.position);
-                    const startPos = v3(orbNode.position);
+                    const nodeUIT = node.getComponent(UITransform);
+                    const targetWorldPos = nodeUIT ? nodeUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(node.worldPosition);
+                    
                     grid[row][col] = null;
 
                     if (lightning) {
-                        lightning.drawLightning(startPos, pos, hex);
+                        const lightningUIT = lightning.getComponent(UITransform);
+                        if (lightningUIT) {
+                            const localStart = lightningUIT.convertToNodeSpaceAR(orbWorldPos);
+                            const localEnd = lightningUIT.convertToNodeSpaceAR(targetWorldPos);
+                            lightning.drawLightning(localStart, localEnd, hex);
+                        }
                     }
 
                     tween(node)
@@ -81,7 +92,7 @@ export class SpecialItemEffects {
         cols: number, 
         playEffect: (pos: Vec3, colorId: string) => void, 
         onComplete: () => void,
-        lightning: LightningEffect
+        lightning: LightningEffect 
     ) {
         const tntNode = grid[r][c];
         if (!tntNode) return;
@@ -98,13 +109,10 @@ export class SpecialItemEffects {
                         const target = grid[nr][nc];
                         if (target) {
                             const pos = v3(target.position);
-                            const startPos = v3(tntNode.position);
                             const piece = target.getComponent(GridPiece);
                             const colorId = piece ? piece.colorId : "blocker";
 
-                            if (lightning) {
-                                lightning.drawLightning(startPos, pos, "#FFD700");
-                            }
+                            // Lightning call removed for TNT
 
                             if (!piece && GameManager.instance) {
                                 GameManager.instance.registerBlockerDestroyed();
