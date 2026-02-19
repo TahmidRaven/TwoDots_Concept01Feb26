@@ -1,5 +1,6 @@
 import { _decorator, Component, Label, Node, CCInteger } from 'cc';
 import { GridController } from './GridController';
+import { VictoryScreen } from './VictoryScreen'; 
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
@@ -31,6 +32,7 @@ export class GameManager extends Component {
 
     onLoad() {
         GameManager.instance = this;
+        // Ensure the victory screen is hidden at start
         if (this.victoryScreen) {
             this.victoryScreen.active = false;
         }
@@ -47,8 +49,11 @@ export class GameManager extends Component {
         if (this._isGameOver) return;
         this._currentMoves--;
         this.updateUI();
-        if (this._currentMoves <= 0) {
-            this.showVictory();
+
+        // FAIL CONDITION: Out of moves while blockers remain
+        if (this._currentMoves <= 0 && this._remainingBlockers > 0) {
+            console.log("[GameManager] Triggering Fail Screen");
+            this.showGameOver(false); 
         }
     }
 
@@ -58,15 +63,44 @@ export class GameManager extends Component {
             this._remainingBlockers--;
             this.updateUI();
         }
+
+        // WIN CONDITION: All blockers cleared
         if (this._remainingBlockers === 0) {
-            this.showVictory();
+            console.log("[GameManager] Triggering Win Screen");
+            this.showGameOver(true);
         }
     }
+
+private showGameOver(isWin: boolean) {
+    if (this._isGameOver) return;
+    this._isGameOver = true;
+
+    if (this.victoryScreen) {
+        // 1. Force the node active immediately
+        this.victoryScreen.active = true;
+
+        // 2. Ensure it is at the very front of the Canvas
+        if (this.node.parent) {
+            this.victoryScreen.setSiblingIndex(this.victoryScreen.parent.children.length - 1);
+        }
+
+        const vsComp = this.victoryScreen.getComponent(VictoryScreen);
+        if (vsComp) {
+            console.log("[GameManager] Executing VictoryScreen.show()");
+            vsComp.show(isWin); 
+        } else {
+            // Fallback: If component is missing, at least center and scale it
+            this.victoryScreen.setPosition(0, 0, 0);
+            this.victoryScreen.setScale(1, 1, 1);
+        }
+    } else {
+        console.error("[GameManager] victoryScreen property is not assigned in the Inspector!");
+    }
+}
 
     public registerPowerupUsed(type: "TNT" | "ORB") {
         if (type === "TNT") this._currentTntUsed++;
         else this._currentOrbUsed++;
-
         this.updateUI();
     }
 
@@ -78,35 +112,13 @@ export class GameManager extends Component {
         return this._currentOrbUsed < this.totalOrbAllowed;
     }
 
-    private showVictory() {
-        if (this._isGameOver) return;
-        this._isGameOver = true;
-        if (this.victoryScreen) {
-            this.victoryScreen.active = true;
-        }
-    }
-
     private updateUI() {
-        if (this.movesLabel) {
-            this.movesLabel.string = `${this._currentMoves}`;
-        }
-        if (this.movesTextLabel) {
-            this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
-        }
-
-        if (this.blockersLabel) {
-            this.blockersLabel.string = `${this._remainingBlockers}`;
-        }
-        if (this.bricksTextLabel) {
-            this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
-        }
-        
-        if (this.tntCountLabel) {
-            this.tntCountLabel.string = `${this._currentTntUsed}/${this.totalTntAllowed}`;
-        }
-        if (this.orbCountLabel) {
-            this.orbCountLabel.string = `${this._currentOrbUsed}/${this.totalOrbAllowed}`;
-        }
+        if (this.movesLabel) this.movesLabel.string = `${this._currentMoves}`;
+        if (this.movesTextLabel) this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
+        if (this.blockersLabel) this.blockersLabel.string = `${this._remainingBlockers}`;
+        if (this.bricksTextLabel) this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
+        if (this.tntCountLabel) this.tntCountLabel.string = `${this._currentTntUsed}/${this.totalTntAllowed}`;
+        if (this.orbCountLabel) this.orbCountLabel.string = `${this._currentOrbUsed}/${this.totalOrbAllowed}`;
     }
 
     public get isGameOver(): boolean {

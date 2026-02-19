@@ -87,7 +87,6 @@ export class GridController extends Component {
         const piece = targetNode.getComponent(GridPiece);
         if (!piece) return;
 
-        // Logic updated: Decrement moves only for valid power-up use or confirmed matches
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
             if (GameManager.instance) {
@@ -134,8 +133,6 @@ export class GridController extends Component {
 
         if (matches.length >= 2) {
             this.isProcessing = true;
-            
-            // Valid match found, decrement move
             if (GameManager.instance) {
                 GameManager.instance.decrementMoves();
             }
