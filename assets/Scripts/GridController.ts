@@ -1,5 +1,6 @@
 import { _decorator, Component, Node, Prefab, instantiate, Vec3, tween, UITransform, CCInteger, EventTouch, input, Input, v3, Animation, UIOpacity } from 'cc';
 import { GridPiece } from './GridPiece';
+import { SpecialItemEffects } from './SpecialItemEffects';
 const { ccclass, property } = _decorator;
 
 @ccclass('GridController')
@@ -17,7 +18,6 @@ export class GridController extends Component {
     private grid: (Node | null)[][] = [];
     private actualCellSize: number = 83;
     private isProcessing: boolean = false;
-
     private initialSpawnQueue: number[] = [];
 
     onLoad() {
@@ -26,24 +26,15 @@ export class GridController extends Component {
     }
 
     private prepareSpawnQueue() {
-        const pattern = [
-            ...Array(3).fill(0), 
-            ...Array(3).fill(1), 
-            ...Array(2).fill(2), 
-            ...Array(4).fill(0), 
-            ...Array(3).fill(1)  
-        ];
-        this.initialSpawnQueue = pattern;
+        this.initialSpawnQueue = [...Array(3).fill(0), ...Array(3).fill(1), ...Array(2).fill(2), ...Array(4).fill(0), ...Array(3).fill(1)];
     }
 
     public initGrid() {
         this.generateBlockerGrid();
-        this.scheduleOnce(() => { this.refillGrid(true); }, 0.8);
+        this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
     }
 
-    public getProcessingStatus(): boolean {
-        return this.isProcessing;
-    }
+    public getProcessingStatus(): boolean { return this.isProcessing; }
 
     private generateBlockerGrid() {
         if (!this.blockerPrefab) return;
@@ -57,15 +48,12 @@ export class GridController extends Component {
         for (let r = 0; r < this.rows; r++) {
             this.grid[r] = [];
             for (let c = 0; c < this.cols; c++) {
-                const posX = (c * this.actualCellSize) - offsetX;
-                const posY = offsetY - (r * this.actualCellSize);
-                
                 if (r < this.activeRows && c < this.activeCols) {
                     this.grid[r][c] = null;
                 } else {
                     const brick = instantiate(this.blockerPrefab);
                     brick.parent = this.node;
-                    brick.setPosition(v3(posX, posY, 0));
+                    brick.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
                     this.grid[r][c] = brick;
                 }
             }
@@ -76,10 +64,8 @@ export class GridController extends Component {
         if (this.isProcessing) return;
         const uiTransform = this.node.getComponent(UITransform);
         const localPos = uiTransform.convertToNodeSpaceAR(v3(event.getUILocation().x, event.getUILocation().y, 0));
-        
         const totalW = (this.cols - 1) * this.actualCellSize;
         const totalH = (this.rows - 1) * this.actualCellSize;
-        
         const c = Math.round((localPos.x + (totalW / 2)) / this.actualCellSize);
         const r = Math.round(((totalH / 2) - localPos.y) / this.actualCellSize);
         
@@ -97,13 +83,13 @@ export class GridController extends Component {
 
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
-            this.triggerTNT(r, c);
+            SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, () => this.applyGravity());
             return;
         }
 
         if (piece.prefabName === "ORB") {
             this.isProcessing = true;
-            this.triggerOrb(r, c);
+            SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, () => this.applyGravity());
             return;
         }
 
@@ -114,7 +100,7 @@ export class GridController extends Component {
         const targetNode = this.grid[r][c]!;
         const targetPiece = targetNode.getComponent(GridPiece)!;
         const typeToMatch = targetPiece.prefabName;
-        const colorToMatch = targetPiece.colorId; // Capture the colorId
+        const colorToMatch = targetPiece.colorId;
         const matches: Node[] = [];
 
         const findMatches = (row: number, col: number) => {
@@ -133,133 +119,24 @@ export class GridController extends Component {
 
         if (matches.length >= 2) {
             this.isProcessing = true;
-            const matchCount = matches.length;
-
             matches.forEach((node, index) => {
                 const p = node.getComponent(GridPiece)!;
                 this.checkAndDestroyAdjacentBlockers(p.row, p.col);
                 this.grid[p.row][p.col] = null;
 
                 tween(node)
-                    .to(0.1, { scale: v3(0, 0, 0) })
+                    .to(0.08, { scale: v3(0, 0, 0) }) // Faster pop
                     .call(() => {
                         node.destroy();
                         if (index === matches.length - 1) {
-                            if (matchCount === 3) {
-                                this.spawnTNTItem(r, c);
-                            } else if (matchCount >= 4) {
-                                this.spawnOrbItem(r, c, colorToMatch); // Pass colorId to the Orb
-                            } else {
-                                this.applyGravity();
-                            }
+                            if (matches.length === 3) this.spawnTNTItem(r, c);
+                            else if (matches.length >= 4) this.spawnOrbItem(r, c, colorToMatch);
+                            else this.applyGravity();
                         }
                     })
                     .start();
             });
         }
-    }
-
-    private triggerOrb(r: number, c: number) {
-        const orbNode = this.grid[r][c];
-        if (!orbNode) return;
-
-        const orbPiece = orbNode.getComponent(GridPiece);
-        // Use the colorId stored in the Orb, or fallback to first available color
-        let targetColorId = orbPiece?.colorId || "";
-
-        if (!targetColorId) {
-            for (let row = 0; row < this.rows; row++) {
-                for (let col = 0; col < this.cols; col++) {
-                    const node = this.grid[row][col];
-                    const piece = node?.getComponent(GridPiece);
-                    if (piece && piece.prefabName !== "TNT" && piece.prefabName !== "ORB") {
-                        targetColorId = piece.colorId;
-                        break;
-                    }
-                }
-                if (targetColorId) break;
-            }
-        }
-
-        if (!targetColorId) {
-            this.grid[r][c] = null;
-            orbNode.destroy();
-            this.applyGravity();
-            return;
-        }
-
-        this.grid[r][c] = null;
-
-        const ballsToDestroy: Node[] = [];
-        for (let row = 0; row < this.rows; row++) {
-            for (let col = 0; col < this.cols; col++) {
-                const node = this.grid[row][col];
-                const piece = node?.getComponent(GridPiece);
-                if (piece && piece.colorId === targetColorId) {
-                    ballsToDestroy.push(node!);
-                    this.grid[row][col] = null;
-                }
-            }
-        }
-
-        ballsToDestroy.forEach((node) => {
-            tween(node)
-                .to(0.3, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
-                .call(() => node.destroy())
-                .start();
-        });
-
-        let uiOpacity = orbNode.getComponent(UIOpacity) || orbNode.addComponent(UIOpacity);
-        
-        tween(orbNode)
-            .to(0.4, { scale: v3(1.5, 1.5, 1.5) })
-            .call(() => {
-                orbNode.destroy();
-                this.applyGravity();
-            })
-            .start();
-
-        tween(uiOpacity)
-            .to(0.4, { opacity: 0 })
-            .start();
-    }
-
-    private triggerTNT(r: number, c: number) {
-        const tntNode = this.grid[r][c];
-        if (!tntNode) return;
-        const anim = tntNode.getComponent(Animation);
-        if (anim) anim.play();
-        this.executeExplosion(r, c, tntNode);
-    }
-
-    private executeExplosion(r: number, c: number, tntNode: Node) {
-        this.grid[r][c] = null;
-        this.scheduleOnce(() => {
-            for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                    const nr = r + dr, nc = c + dc;
-                    if (nr === r && nc === c) continue;
-                    if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
-                        const target = this.grid[nr][nc];
-                        if (target) {
-                            this.grid[nr][nc] = null;
-                            tween(target)
-                                .to(0.1, { scale: v3(0, 0, 0) }, { easing: 'sineIn' })
-                                .call(() => { if(target.isValid) target.destroy(); })
-                                .start();
-                        }
-                    }
-                }
-            }
-        }, 0.45);
-
-        this.scheduleOnce(() => {
-            if (tntNode && tntNode.isValid) {
-                tween(tntNode).to(0.1, { scale: v3(0, 0, 0) }).call(() => tntNode.destroy()).start();
-            }
-        }, 1.35);
-
-        this.scheduleOnce(() => { this.applyGravity(); }, 1.4); 
     }
 
     private applyGravity() {
@@ -276,23 +153,23 @@ export class GridController extends Component {
                             this.grid[k][c] = null;
                             p.row = r;
                             const targetY = (this.rows - 1) * this.actualCellSize / 2 - (r * this.actualCellSize);
-                            const duration = 0.3;
-                            tween(upperNode).to(duration, { position: v3(upperNode.position.x, targetY, 0) }, { easing: 'sineIn' }).start();
-                            longestMove = Math.max(longestMove, duration);
+                            
+                            // Improved easing to prevent the "stuck" feeling
+                            tween(upperNode).to(0.25, { position: v3(upperNode.position.x, targetY, 0) }, { easing: 'quadOut' }).start();
+                            longestMove = Math.max(longestMove, 0.25);
                             break; 
                         }
                     }
                 }
             }
         }
-        this.scheduleOnce(() => { this.refillGrid(false); }, longestMove + 0.05);
+        // No extra padding delay here
+        this.scheduleOnce(() => { this.refillGrid(false); }, longestMove);
     }
 
     private refillGrid(isInitial: boolean = false) {
         let spawnCount = 0;
-        const interval = 0.08;
         let maxSpawnDelay = 0;
-
         for (let c = 0; c < this.cols; c++) {
             if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) continue;
             for (let r = this.rows - 1; r >= 0; r--) {
@@ -305,7 +182,7 @@ export class GridController extends Component {
                         }
                     }
                     if (!blockedFromAbove) {
-                        const delay = spawnCount * interval;
+                        const delay = spawnCount * 0.05; // Tightened spawn interval
                         this.spawnBallAtTop(c, r, delay, isInitial);
                         maxSpawnDelay = Math.max(maxSpawnDelay, delay);
                         spawnCount++;
@@ -313,7 +190,7 @@ export class GridController extends Component {
                 }
             }
         }
-        this.scheduleOnce(() => { this.isProcessing = false; }, maxSpawnDelay + 0.6);
+        this.scheduleOnce(() => { this.isProcessing = false; }, maxSpawnDelay + 0.4);
     }
 
     private spawnBallAtTop(c: number, targetRow: number, delay: number, isInitial: boolean) {
@@ -336,12 +213,12 @@ export class GridController extends Component {
             const totalW = (this.cols - 1) * this.actualCellSize;
             const totalH = (this.rows - 1) * this.actualCellSize;
             const startX = (c * this.actualCellSize) - (totalW / 2);
-            const startY = (totalH / 2) + 200;
+            const startY = (totalH / 2) + 150;
             const targetY = (totalH / 2) - (targetRow * this.actualCellSize);
 
             ball.setPosition(v3(startX, startY, 0));
             this.grid[targetRow][c] = ball;
-            tween(ball).to(0.5, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' }).start();
+            tween(ball).to(0.4, { position: v3(startX, targetY, 0) }, { easing: 'bounceOut' }).start();
         }, delay);
     }
 
@@ -359,10 +236,7 @@ export class GridController extends Component {
         const item = instantiate(prefab);
         item.parent = this.node;
         const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
-        piece.row = r; 
-        piece.col = c; 
-        piece.prefabName = name;
-        piece.colorId = colorId; // Store the colorId in the Orb's GridPiece
+        piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
         
         const offsetX = (this.cols - 1) * this.actualCellSize / 2;
         const offsetY = (this.rows - 1) * this.actualCellSize / 2;
