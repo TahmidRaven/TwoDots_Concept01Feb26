@@ -41,7 +41,17 @@ export class SpecialItemEffects {
         };
         const hex = colorMap[targetColorId] || "#FFFFFF";
 
-        // Get Orb World Position once
+        // --- ORB IMPACT FEEDBACK ---
+        // Physical shake of the board
+        if (orbNode.parent) {
+            const originalPos = orbNode.parent.position.clone();
+            tween(orbNode.parent)
+                .to(0.05, { position: v3(originalPos.x + 8, originalPos.y + 8) })
+                .to(0.05, { position: v3(originalPos.x - 8, originalPos.y - 8) })
+                .to(0.05, { position: originalPos })
+                .start();
+        }
+
         const orbUIT = orbNode.getComponent(UITransform);
         const orbWorldPos = orbUIT ? orbUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(orbNode.worldPosition);
 
@@ -51,7 +61,6 @@ export class SpecialItemEffects {
                 if (!node) continue;
                 
                 const piece = node.getComponent(GridPiece);
-                // Trigger lightning for EVERY ball that matches the color
                 if (piece && piece.colorId === targetColorId) {
                     const pos = v3(node.position);
                     const nodeUIT = node.getComponent(UITransform);
@@ -68,8 +77,11 @@ export class SpecialItemEffects {
                         }
                     }
 
+                    // Staggered "pop" animation
                     tween(node)
-                        .to(0.15, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
+                        .delay(Math.random() * 0.12)
+                        .to(0.1, { scale: v3(1.3, 1.3, 1.3) }) // Swell before popping
+                        .to(0.1, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
                         .call(() => {
                             playEffect(pos, targetColorId);
                             node.destroy();
@@ -80,8 +92,8 @@ export class SpecialItemEffects {
         }
 
         let uiOpacity = orbNode.getComponent(UIOpacity) || orbNode.addComponent(UIOpacity);
-        tween(orbNode).to(0.3, { scale: v3(1.5, 1.5, 1.5) }).call(() => { orbNode.destroy(); onComplete(); }).start();
-        tween(uiOpacity).to(0.3, { opacity: 0 }).start();
+        tween(orbNode).to(0.25, { scale: v3(1.8, 1.8, 1.8) }).call(() => { orbNode.destroy(); onComplete(); }).start();
+        tween(uiOpacity).to(0.25, { opacity: 0 }).start();
     }
 
     public static executeTNT(
@@ -96,10 +108,14 @@ export class SpecialItemEffects {
     ) {
         const tntNode = grid[r][c];
         if (!tntNode) return;
+        
+        // Use the internal animation assigned to the TNT prefab
         const anim = tntNode.getComponent(Animation);
         if (anim) anim.play();
+        
         grid[r][c] = null;
 
+        // Standard delay matching your existing TNT explosion timing
         setTimeout(() => {
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
@@ -111,8 +127,6 @@ export class SpecialItemEffects {
                             const pos = v3(target.position);
                             const piece = target.getComponent(GridPiece);
                             const colorId = piece ? piece.colorId : "blocker";
-
-                            // Lightning call removed for TNT
 
                             if (!piece && GameManager.instance) {
                                 GameManager.instance.registerBlockerDestroyed();
