@@ -1,6 +1,7 @@
-import { _decorator, Component, Node, Prefab, instantiate, Vec3, tween, UITransform, CCInteger, EventTouch, input, Input, v3, Animation, UIOpacity } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, tween } from 'cc';
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
+import { GameManager } from './GameManager';
 const { ccclass, property } = _decorator;
 
 @ccclass('GridController')
@@ -13,8 +14,10 @@ export class GridController extends Component {
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
 
+    // 5x3 = 15 balls, leaving 66 blockers in a 9x9 grid
     private activeRows: number = 5;
     private activeCols: number = 3;
+    
     private grid: (Node | null)[][] = [];
     private actualCellSize: number = 83;
     private isProcessing: boolean = false;
@@ -81,6 +84,8 @@ export class GridController extends Component {
         const piece = targetNode.getComponent(GridPiece);
         if (!piece) return;
 
+        if (GameManager.instance) GameManager.instance.decrementMoves();
+
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
             SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, () => this.applyGravity());
@@ -125,7 +130,7 @@ export class GridController extends Component {
                 this.grid[p.row][p.col] = null;
 
                 tween(node)
-                    .to(0.08, { scale: v3(0, 0, 0) }) // Faster pop
+                    .to(0.08, { scale: v3(0, 0, 0) })
                     .call(() => {
                         node.destroy();
                         if (index === matches.length - 1) {
@@ -153,8 +158,6 @@ export class GridController extends Component {
                             this.grid[k][c] = null;
                             p.row = r;
                             const targetY = (this.rows - 1) * this.actualCellSize / 2 - (r * this.actualCellSize);
-                            
-                            // Improved easing to prevent the "stuck" feeling
                             tween(upperNode).to(0.25, { position: v3(upperNode.position.x, targetY, 0) }, { easing: 'quadOut' }).start();
                             longestMove = Math.max(longestMove, 0.25);
                             break; 
@@ -163,7 +166,6 @@ export class GridController extends Component {
                 }
             }
         }
-        // No extra padding delay here
         this.scheduleOnce(() => { this.refillGrid(false); }, longestMove);
     }
 
@@ -182,7 +184,7 @@ export class GridController extends Component {
                         }
                     }
                     if (!blockedFromAbove) {
-                        const delay = spawnCount * 0.05; // Tightened spawn interval
+                        const delay = spawnCount * 0.05;
                         this.spawnBallAtTop(c, r, delay, isInitial);
                         maxSpawnDelay = Math.max(maxSpawnDelay, delay);
                         spawnCount++;
@@ -254,6 +256,8 @@ export class GridController extends Component {
                 const neighbor = this.grid[nr][nc];
                 if (neighbor && !neighbor.getComponent(GridPiece)) {
                     this.grid[nr][nc] = null;
+                    // Trigger countdown in GameManager
+                    if (GameManager.instance) GameManager.instance.registerBlockerDestroyed();
                     tween(neighbor).to(0.2, { scale: v3(0, 0, 0) }).call(() => neighbor.destroy()).start();
                 }
             }
