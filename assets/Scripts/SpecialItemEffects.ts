@@ -60,7 +60,7 @@ export class SpecialItemEffects {
         }
 
         // Timing Configuration
-        const drawWindow = 0.2; // All lines finish drawing in 0.2s
+        const drawWindow = 0.3; // All lines finish drawing in 0.2s
         const holdTime = 0.1;   // Hold all lines for 0.1s before destruction
         const popDuration = 0.15;
         const stagger = targets.length > 1 ? drawWindow / (targets.length - 1) : 0;
