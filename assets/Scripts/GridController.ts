@@ -2,6 +2,9 @@ import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCIntege
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
+import { GridShuffler } from './GridShuffler';
+import { LightningEffect } from './LightningEffect';
+
 const { ccclass, property } = _decorator;
 
 @ccclass('GridController')
@@ -10,11 +13,13 @@ export class GridController extends Component {
     @property([Prefab]) ballPrefabs: Prefab[] = []; 
     @property(Prefab) tntPrefab: Prefab = null;
     @property(Prefab) orbPrefab: Prefab = null; 
-    
     @property(Prefab) blockDestroyPrefab: Prefab = null;
 
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
+
+    // DRAG THE LIGHTNING LAYER NODE HERE IN THE INSPECTOR
+    @property(LightningEffect) lightning: LightningEffect = null;
 
     private activeRows: number = 5;
     private activeCols: number = 3;
@@ -22,10 +27,11 @@ export class GridController extends Component {
     private actualCellSize: number = 83;
     private isProcessing: boolean = false;
     private initialSpawnQueue: number[] = [];
-
+    
     onLoad() {
         input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
         this.prepareSpawnQueue();
+        // DO NOT use getComponent here; it would overwrite your Inspector link
     }
 
     private prepareSpawnQueue() {
@@ -36,8 +42,6 @@ export class GridController extends Component {
         this.generateBlockerGrid();
         this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
     }
-
-    public getProcessingStatus(): boolean { return this.isProcessing; }
 
     private generateBlockerGrid() {
         if (!this.blockerPrefab) return;
@@ -80,7 +84,7 @@ export class GridController extends Component {
 
     private handleCellTap(r: number, c: number) {
         const targetNode = this.grid[r][c];
-        if (!targetNode) return;
+        if (!targetNode || this.isProcessing) return;
 
         const piece = targetNode.getComponent(GridPiece);
         if (!piece) return;
@@ -89,13 +93,13 @@ export class GridController extends Component {
 
         if (piece.prefabName === "TNT") {
             this.isProcessing = true;
-            SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity());
+            SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
             return;
         }
 
         if (piece.prefabName === "ORB") {
             this.isProcessing = true;
-            SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity());
+            SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
             return;
         }
 
@@ -149,40 +153,24 @@ export class GridController extends Component {
         }
     }
 
-    /**
-     * Corrected playEffect method with proper imports
-     */
     public playEffect(pos: Vec3, colorId: string) {
         if (!this.blockDestroyPrefab) return;
-
         const effect = instantiate(this.blockDestroyPrefab);
         effect.parent = this.node;
         effect.setPosition(pos);
 
-        // Map the string colorId to a hex color
         const colorMap: { [key: string]: string } = {
-            "blue": "#3498db",
-            "red": "#e74c3c",
-            "green": "#2ecc71",
-            "yellow": "#f1c40f",
-            "blocker": "#95a5a6" 
+            "blue": "#3498db", "red": "#e74c3c", "green": "#2ecc71", "yellow": "#f1c40f", "blocker": "#95a5a6" 
         };
 
         const hex = colorMap[colorId] || "#ffffff";
-        
-        // Use imported Sprite class directly
         const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);
-        if (sprite) {
-            sprite.color = new Color().fromHEX(hex);
-        }
+        if (sprite) sprite.color = new Color().fromHEX(hex);
 
         const anim = effect.getComponent(Animation);
         if (anim) {
-            // Using the string name directly for play
-            anim.play('blockDestoryAnimation');
-            anim.on(Animation.EventType.FINISHED, () => {
-                if (isValid(effect)) effect.destroy();
-            });
+            anim.play('blockDestoryAnimation2');
+            anim.on(Animation.EventType.FINISHED, () => { if (isValid(effect)) effect.destroy(); });
         } else {
             this.scheduleOnce(() => { if (isValid(effect)) effect.destroy(); }, 0.5);
         }
@@ -259,7 +247,16 @@ export class GridController extends Component {
                 }
             }
         }
-        this.scheduleOnce(() => { this.isProcessing = false; }, maxSpawnDelay + 0.4);
+
+        this.scheduleOnce(() => {
+            if (!GridShuffler.hasValidMoves(this.grid, this.rows, this.cols)) {
+                GridShuffler.shuffle(this.grid, this.rows, this.cols, this.actualCellSize, () => {
+                    this.refillGrid(false);
+                });
+            } else {
+                this.isProcessing = false;
+            }
+        }, maxSpawnDelay + 0.4);
     }
 
     private spawnBallAtTop(c: number, targetRow: number, delay: number, isInitial: boolean) {
@@ -275,8 +272,7 @@ export class GridController extends Component {
             const ball = instantiate(this.ballPrefabs[prefabIdx]);
             ball.parent = this.node;
             const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
-            piece.row = targetRow; 
-            piece.col = c;
+            piece.row = targetRow; piece.col = c;
             piece.prefabName = this.ballPrefabs[prefabIdx].name;
 
             const totalW = (this.cols - 1) * this.actualCellSize;
