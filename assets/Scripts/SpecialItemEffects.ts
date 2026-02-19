@@ -20,6 +20,7 @@ export class SpecialItemEffects {
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
+        // Fallback: if orb has no color, find the first available color on the grid
         if (!targetColorId) {
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
@@ -41,19 +42,11 @@ export class SpecialItemEffects {
         };
         const hex = colorMap[targetColorId] || "#FFFFFF";
 
-        // --- ORB IMPACT FEEDBACK ---
-        // Physical shake of the board
-        if (orbNode.parent) {
-            const originalPos = orbNode.parent.position.clone();
-            tween(orbNode.parent)
-                .to(0.05, { position: v3(originalPos.x + 8, originalPos.y + 8) })
-                .to(0.05, { position: v3(originalPos.x - 8, originalPos.y - 8) })
-                .to(0.05, { position: originalPos })
-                .start();
-        }
-
         const orbUIT = orbNode.getComponent(UITransform);
         const orbWorldPos = orbUIT ? orbUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(orbNode.worldPosition);
+
+        let boltCount = 0;
+        const staggerTime = 0.08; // Time between each lightning strike
 
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
@@ -66,21 +59,27 @@ export class SpecialItemEffects {
                     const nodeUIT = node.getComponent(UITransform);
                     const targetWorldPos = nodeUIT ? nodeUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(node.worldPosition);
                     
-                    grid[row][col] = null;
+                    grid[row][col] = null; // Logical removal
+                    const delay = boltCount * staggerTime;
+                    boltCount++;
 
-                    if (lightning) {
-                        const lightningUIT = lightning.getComponent(UITransform);
-                        if (lightningUIT) {
-                            const localStart = lightningUIT.convertToNodeSpaceAR(orbWorldPos);
-                            const localEnd = lightningUIT.convertToNodeSpaceAR(targetWorldPos);
-                            lightning.drawLightning(localStart, localEnd, hex);
-                        }
-                    }
-
-                    // Staggered "pop" animation
                     tween(node)
-                        .delay(Math.random() * 0.12)
-                        .to(0.1, { scale: v3(1.3, 1.3, 1.3) }) // Swell before popping
+                        // 1. IMMEDIATE REACTION: Shrink slightly so they don't look "afloat"
+                        .to(0.1, { scale: v3(0.8, 0.8, 0.8) }, { easing: 'quadIn' })
+                        .delay(delay)
+                        .call(() => {
+                            // 2. FIRE LIGHTNING
+                            if (lightning) {
+                                const lUIT = lightning.getComponent(UITransform);
+                                if (lUIT) {
+                                    const lStart = lUIT.convertToNodeSpaceAR(orbWorldPos);
+                                    const lEnd = lUIT.convertToNodeSpaceAR(targetWorldPos);
+                                    lightning.drawLightning(lStart, lEnd, hex);
+                                }
+                            }
+                        })
+                        // 3. IMPACT: Quick swell and destroy
+                        .to(0.05, { scale: v3(1.2, 1.2, 1.2) }) 
                         .to(0.1, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
                         .call(() => {
                             playEffect(pos, targetColorId);
@@ -91,9 +90,19 @@ export class SpecialItemEffects {
             }
         }
 
+        // Calculate how long to wait before allowing pieces to fall (Gravity)
+        const totalWaitTime = (boltCount * staggerTime) + 0.4;
+
         let uiOpacity = orbNode.getComponent(UIOpacity) || orbNode.addComponent(UIOpacity);
-        tween(orbNode).to(0.25, { scale: v3(1.8, 1.8, 1.8) }).call(() => { orbNode.destroy(); onComplete(); }).start();
-        tween(uiOpacity).to(0.25, { opacity: 0 }).start();
+        tween(orbNode)
+            .to(0.2, { scale: v3(1.6, 1.6, 1.6) }) // Grow the orb while it fires
+            .delay(totalWaitTime)
+            .to(0.15, { scale: v3(0, 0, 0) })
+            .call(() => {
+                orbNode.destroy();
+                onComplete(); // Trigger applyGravity() in GridController
+            })
+            .start();
     }
 
     public static executeTNT(
@@ -109,13 +118,11 @@ export class SpecialItemEffects {
         const tntNode = grid[r][c];
         if (!tntNode) return;
         
-        // Use the internal animation assigned to the TNT prefab
         const anim = tntNode.getComponent(Animation);
         if (anim) anim.play();
         
         grid[r][c] = null;
 
-        // Standard delay matching your existing TNT explosion timing
         setTimeout(() => {
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
