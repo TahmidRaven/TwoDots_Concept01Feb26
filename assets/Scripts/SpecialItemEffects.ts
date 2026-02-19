@@ -1,4 +1,4 @@
-import { Node, v3, Vec3, tween, Animation, UIOpacity, isValid, UITransform } from 'cc';
+import { Node, v3, Vec3, tween, Animation, isValid, UITransform } from 'cc';
 import { GridPiece } from './GridPiece';
 import { GameManager } from './GameManager';
 import { LightningEffect } from './LightningEffect';
@@ -20,7 +20,7 @@ export class SpecialItemEffects {
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
-        // Fallback: if orb has no color, find the first available color on the grid
+        // Fallback: find the first available color on the grid
         if (!targetColorId) {
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
@@ -45,62 +45,69 @@ export class SpecialItemEffects {
         const orbUIT = orbNode.getComponent(UITransform);
         const orbWorldPos = orbUIT ? orbUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(orbNode.worldPosition);
 
-        let boltCount = 0;
-        const staggerTime = 0.08; // Time between each lightning strike
-
+        // 1. Collect all targets
+        const targets: {node: Node, pos: Vec3}[] = [];
         for (let row = 0; row < rows; row++) {
             for (let col = 0; col < cols; col++) {
                 const node = grid[row][col];
                 if (!node) continue;
-                
                 const piece = node.getComponent(GridPiece);
                 if (piece && piece.colorId === targetColorId) {
-                    const pos = v3(node.position);
-                    const nodeUIT = node.getComponent(UITransform);
-                    const targetWorldPos = nodeUIT ? nodeUIT.convertToWorldSpaceAR(v3(0,0,0)) : v3(node.worldPosition);
-                    
-                    grid[row][col] = null; // Logical removal
-                    const delay = boltCount * staggerTime;
-                    boltCount++;
-
-                    tween(node)
-                        // 1. IMMEDIATE REACTION: Shrink slightly so they don't look "afloat"
-                        .to(0.1, { scale: v3(0.8, 0.8, 0.8) }, { easing: 'quadIn' })
-                        .delay(delay)
-                        .call(() => {
-                            // 2. FIRE LIGHTNING
-                            if (lightning) {
-                                const lUIT = lightning.getComponent(UITransform);
-                                if (lUIT) {
-                                    const lStart = lUIT.convertToNodeSpaceAR(orbWorldPos);
-                                    const lEnd = lUIT.convertToNodeSpaceAR(targetWorldPos);
-                                    lightning.drawLightning(lStart, lEnd, hex);
-                                }
-                            }
-                        })
-                        // 3. IMPACT: Quick swell and destroy
-                        .to(0.05, { scale: v3(1.2, 1.2, 1.2) }) 
-                        .to(0.1, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
-                        .call(() => {
-                            playEffect(pos, targetColorId);
-                            node.destroy();
-                        })
-                        .start();
+                    targets.push({ node, pos: v3(node.position) });
+                    grid[row][col] = null; 
                 }
             }
         }
 
-        // Calculate how long to wait before allowing pieces to fall (Gravity)
-        const totalWaitTime = (boltCount * staggerTime) + 0.4;
+        // Timing Configuration
+        const drawWindow = 0.2; // All lines finish drawing in 0.2s
+        const holdTime = 0.1;   // Hold all lines for 0.1s before destruction
+        const popDuration = 0.15;
+        const stagger = targets.length > 1 ? drawWindow / (targets.length - 1) : 0;
 
-        let uiOpacity = orbNode.getComponent(UIOpacity) || orbNode.addComponent(UIOpacity);
+        // 2. Animate Targets
+        targets.forEach((targetData, index) => {
+            const startDrawDelay = index * stagger;
+            // Every item pops at the same time: (end of draw window + hold time)
+            const syncPopDelay = (drawWindow - startDrawDelay) + holdTime;
+
+            tween(targetData.node)
+                .delay(startDrawDelay)
+                .call(() => {
+                    if (lightning) {
+                        const lUIT = lightning.getComponent(UITransform);
+                        const nodeUIT = targetData.node.getComponent(UITransform);
+                        if (lUIT && nodeUIT) {
+                            const targetWorldPos = nodeUIT.convertToWorldSpaceAR(v3(0,0,0));
+                            const lStart = lUIT.convertToNodeSpaceAR(orbWorldPos);
+                            const lEnd = lUIT.convertToNodeSpaceAR(targetWorldPos);
+                            lightning.drawLightning(lStart, lEnd, hex);
+                        }
+                    }
+                })
+                .delay(syncPopDelay)
+                .to(0.05, { scale: v3(1.2, 1.2, 1.2) }) // Impact swell
+                .to(popDuration, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
+                .call(() => {
+                    playEffect(targetData.pos, targetColorId);
+                    targetData.node.destroy();
+                })
+                .start();
+        });
+
+        // 3. Manage Orb and Lightning Web Cleanup
+        const cleanupTriggerTime = drawWindow + holdTime;
+
         tween(orbNode)
-            .to(0.2, { scale: v3(1.6, 1.6, 1.6) }) // Grow the orb while it fires
-            .delay(totalWaitTime)
-            .to(0.15, { scale: v3(0, 0, 0) })
+            .to(0.15, { scale: v3(1.25, 1.25, 1.25) }) // Cap scale at 1.25x
+            .delay(cleanupTriggerTime)
+            .call(() => {
+                if (lightning) lightning.clearWeb(); // Clear web exactly when items pop
+            })
+            .to(0.1, { scale: v3(0, 0, 0) })
             .call(() => {
                 orbNode.destroy();
-                onComplete(); // Trigger applyGravity() in GridController
+                onComplete(); // Trigger gravity
             })
             .start();
     }
