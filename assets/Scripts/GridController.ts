@@ -4,6 +4,7 @@ import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
 import { GridShuffler } from './GridShuffler';
 import { LightningEffect } from './LightningEffect';
+import { TutorialHand } from './TutorialHand';
 
 const { ccclass, property } = _decorator;
 
@@ -19,6 +20,10 @@ export class GridController extends Component {
     @property({ type: CCInteger }) cols: number = 9;
 
     @property(LightningEffect) lightning: LightningEffect = null;
+    
+    // --- TUTORIAL HAND SETUP ---
+    @property(Node) tutorialHandNode: Node = null!; // Changed to Node for Inspector stability
+    private _tutorialHand: TutorialHand = null!;
 
     private activeRows: number = 5;
     private activeCols: number = 3;
@@ -26,10 +31,20 @@ export class GridController extends Component {
     private actualCellSize: number = 83;
     private isProcessing: boolean = false;
     private initialSpawnQueue: number[] = [];
+
+    // Tutorial State tracking
+    private _hasInteracted: boolean = false;
+    private _firstTNTShown: boolean = false;
+    private _firstOrbShown: boolean = false;
     
     onLoad() {
         input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
         this.prepareSpawnQueue();
+
+        // Safely get the TutorialHand component from the node
+        if (this.tutorialHandNode) {
+            this._tutorialHand = this.tutorialHandNode.getComponent(TutorialHand)!;
+        }
     }
 
     private prepareSpawnQueue() {
@@ -68,6 +83,12 @@ export class GridController extends Component {
     private onGridTouch(event: EventTouch) {
         if (this.isProcessing || (GameManager.instance && GameManager.instance.isGameOver)) return;
 
+        // Hide hand upon first interaction
+        if (this._tutorialHand && this._tutorialHand.node.active) {
+            this._hasInteracted = true;
+            this._tutorialHand.hide();
+        }
+
         const uiTransform = this.node.getComponent(UITransform);
         const localPos = uiTransform.convertToNodeSpaceAR(v3(event.getUILocation().x, event.getUILocation().y, 0));
         const totalW = (this.cols - 1) * this.actualCellSize;
@@ -91,7 +112,7 @@ export class GridController extends Component {
             this.isProcessing = true;
             if (GameManager.instance) {
                 GameManager.instance.decrementMoves();
-                GameManager.instance.registerPowerupUsed("TNT"); 
+                GameManager.instance.registerPowerupUsed("TNT");
             }
             SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
             return;
@@ -171,17 +192,16 @@ export class GridController extends Component {
         effect.parent = this.node;
         effect.setPosition(pos);
     
-        // --- TRIGGER SFX BASED ON TARGET TYPE ---
         if (GameManager.instance) {
             if (colorId === "blocker") {
-                GameManager.instance.playAudio("BlockDestroy"); 
+                GameManager.instance.playAudio("BlockDestroy");
             } else {
                 GameManager.instance.playAudio("BallDestroy");
             }
         }
 
         const colorMap: { [key: string]: string } = {
-            "blue": "#3498db", "red": "#e74c3c", "green": "#2ecc71", "yellow": "#f1c40f", "blocker": "#95a5a6" 
+            "blue": "#3498db", "red": "#e74c3c", "green": "#2ecc71", "yellow": "#f1c40f", "blocker": "#95a5a6"
         };
 
         const hex = colorMap[colorId] || "#ffffff";
@@ -229,7 +249,7 @@ export class GridController extends Component {
                         const upperNode = this.grid[k][c];
                         if (upperNode) {
                             const p = upperNode.getComponent(GridPiece);
-                            if (!p) break; 
+                            if (!p) break;
                             this.grid[r][c] = upperNode;
                             this.grid[k][c] = null;
                             p.row = r;
@@ -276,8 +296,78 @@ export class GridController extends Component {
                 });
             } else {
                 this.isProcessing = false;
+                // Check tutorial triggers after board stabilizes
+                this.checkTutorialTriggers();
             }
         }, maxSpawnDelay + 0.4);
+    }
+
+    private checkTutorialTriggers() {
+        if (!this._tutorialHand) return;
+
+        // 1. Check for TNT first spawn
+        const tntPos = this.findFirstItem("TNT");
+        if (tntPos && !this._firstTNTShown) {
+            this._firstTNTShown = true;
+            this._tutorialHand.showAt(tntPos);
+            return;
+        }
+
+        // 2. Check for ORB first spawn
+        const orbPos = this.findFirstItem("ORB");
+        if (orbPos && !this._firstOrbShown) {
+            this._firstOrbShown = true;
+            this._tutorialHand.showAt(orbPos);
+            return;
+        }
+
+        // 3. Initial Hint: If player hasn't moved and hand isn't active
+        if (!this._hasInteracted && !this._tutorialHand.isShowing) {
+            const hintMove = this.findHintMove();
+            if (hintMove) {
+                this._tutorialHand.showAt(hintMove);
+            }
+        }
+    }
+
+    private findFirstItem(name: string): Vec3 | null {
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const node = this.grid[r][c];
+                const p = node?.getComponent(GridPiece);
+                if (p && p.prefabName === name) {
+                    return v3(node!.position);
+                }
+            }
+        }
+        return null;
+    }
+
+    private findHintMove(): Vec3 | null {
+        for (let r = 0; r < this.rows; r++) {
+            for (let c = 0; c < this.cols; c++) {
+                const node = this.grid[r][c];
+                const p = node?.getComponent(GridPiece);
+                if (!p || p.prefabName === "TNT" || p.prefabName === "ORB") continue;
+
+                const directions = [{dr:1, dc:0}, {dr:-1, dc:0}, {dr:0, dc:1}, {dr:0, dc:-1}];
+                let hasMatch = false;
+                let touchesBlocker = false;
+
+                for (const d of directions) {
+                    const nr = r + d.dr, nc = c + d.dc;
+                    if (nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols) {
+                        const neighbor = this.grid[nr][nc];
+                        if (!neighbor) continue;
+                        const np = neighbor.getComponent(GridPiece);
+                        if (np && np.colorId === p.colorId) hasMatch = true;
+                        if (!np) touchesBlocker = true; 
+                    }
+                }
+                if (hasMatch && touchesBlocker) return v3(node!.position);
+            }
+        }
+        return null;
     }
 
     private spawnBallAtTop(c: number, targetRow: number, delay: number, isInitial: boolean) {
