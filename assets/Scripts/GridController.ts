@@ -171,9 +171,14 @@ export class GridController extends Component {
         effect.parent = this.node;
         effect.setPosition(pos);
     
+        // --- TRIGGER SFX BASED ON TARGET TYPE ---
         if (GameManager.instance) {
-        GameManager.instance.playAudio("BrickDestroy"); 
-    }
+            if (colorId === "blocker") {
+                GameManager.instance.playAudio("BlockDestroy"); 
+            } else {
+                GameManager.instance.playAudio("BallDestroy");
+            }
+        }
 
         const colorMap: { [key: string]: string } = {
             "blue": "#3498db", "red": "#e74c3c", "green": "#2ecc71", "yellow": "#f1c40f", "blocker": "#95a5a6" 

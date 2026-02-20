@@ -36,6 +36,11 @@ export class SpecialItemEffects {
         grid[r][c] = null;
         if (!targetColorId) { orbNode.destroy(); onComplete(); return; }
 
+        // --- PLAY ORB LIGHTNING SOUND ---
+        if (GameManager.instance) {
+            GameManager.instance.playAudio("ORBlightning");
+        }
+
         const colorMap: { [key: string]: string } = {
             "blue": "#00FFFF", "red": "#FF3131", "green": "#39FF14", "yellow": "#FFF01F"
         };
@@ -125,6 +130,11 @@ export class SpecialItemEffects {
         grid[r][c] = null;
 
         setTimeout(() => {
+            // --- PLAY TNT EXPLOSION SOUND ---
+            if (GameManager.instance) {
+                GameManager.instance.playAudio("TNTexplosion");
+            }
+
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
                     if (dr === 0 && dc === 0) continue;
