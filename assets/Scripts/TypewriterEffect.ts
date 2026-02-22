@@ -12,10 +12,6 @@ export class TypewriterEffect extends Component {
     private _fullText: string = "";
     private _currentIndex: number = 0;
 
-    /**
-     * Starts the typewriter animation.
-     * @param text The string to type out.
-     */
     public play(text: string) {
         if (!this.targetLabel) return;
         

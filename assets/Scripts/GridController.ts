@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite, Label } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite } from 'cc';
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
@@ -6,6 +6,7 @@ import { GridShuffler } from './GridShuffler';
 import { LightningEffect } from './LightningEffect';
 import { TutorialHand } from './TutorialHand';
 import { TypewriterEffect } from './TypewriterEffect'; 
+import { BlockerAnimation } from './BlockerAnimation'; 
 
 const { ccclass, property } = _decorator;
 
@@ -63,8 +64,8 @@ export class GridController extends Component {
             this.instructionBoard.active = true;
             this.typewriter.play(introText); 
 
-            // Calculate duration: (chars * speed) + 2.25s extra stay time
-            const displayDuration = (introText.length * this.typewriter.typingSpeed) + 2.25;
+            // Calculate duration: typing time + 1.25s stay time
+            const displayDuration = (introText.length * this.typewriter.typingSpeed) + 1.25;
 
             this.scheduleOnce(() => {
                 if (this.instructionBoard) {
@@ -95,6 +96,13 @@ export class GridController extends Component {
                     brick.parent = this.node;
                     brick.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
                     this.grid[r][c] = brick;
+
+                    // --- ATTACH ANIMATION AND TRIGGER WAVE POP ---
+                    let animComp = brick.getComponent(BlockerAnimation) || brick.addComponent(BlockerAnimation);
+                    
+                    // Delay based on row + column index creates a diagonal wave effect
+                    const staggerDelay = (r + c) * 0.04; 
+                    animComp.playIntroEffect(1.25, staggerDelay);
                 }
             }
         }
