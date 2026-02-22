@@ -78,7 +78,7 @@ export class GameManager extends Component {
     }
 
     start() {
-        // Pass true to skip animation on the very first frame
+        // skip update ui for frist time to load
         this.updateUI(true); 
         if (this.gridController) {
             this.gridController.initGrid();
