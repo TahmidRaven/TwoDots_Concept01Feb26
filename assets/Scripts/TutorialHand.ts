@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Vec3, v3, tween } from 'cc';
+import { _decorator, Component, Node, Vec3, v3, tween, UITransform } from 'cc';
 const { ccclass, property } = _decorator;
 
 @ccclass('TutorialHand')
@@ -7,17 +7,25 @@ export class TutorialHand extends Component {
     private _isShowing: boolean = false;
 
     onLoad() {
-        // Capture the scale you set in the Editor to use as the "max" tap size
         this._baseScale = this.node.scale.clone();
-        
-        // Hide immediately so it doesn't show at the center on start
         this.node.active = false;
         this.node.setScale(v3(0, 0, 0));
     }
 
     /**
-     * Shows the hand at a specific local position and starts the 1.25s tap loop
+     * Converts World Position to Local Space before showing
      */
+    public showAtWorld(worldPos: Vec3) {
+        if (!this.node.parent) return;
+        
+        // Get the parent's UITransform to convert the world coordinate into local space
+        const parentUIT = this.node.parent.getComponent(UITransform);
+        if (parentUIT) {
+            const localPos = parentUIT.convertToNodeSpaceAR(worldPos);
+            this.showAt(localPos);
+        }
+    }
+
     public showAt(pos: Vec3) {
         this.node.active = true;
         this._isShowing = true;
@@ -25,7 +33,6 @@ export class TutorialHand extends Component {
         
         tween(this.node).stop();
 
-        // 1.25s total loop: Scale up and down to simulate a tap
         tween(this.node)
             .to(0, { scale: v3(0, 0, 0) })
             .to(0.4, { scale: this._baseScale }, { easing: 'backOut' })

@@ -21,8 +21,7 @@ export class GridController extends Component {
 
     @property(LightningEffect) lightning: LightningEffect = null;
     
-    // --- TUTORIAL HAND SETUP ---
-    @property(Node) tutorialHandNode: Node = null!; // Changed to Node for Inspector stability
+    @property(Node) tutorialHandNode: Node = null!; 
     private _tutorialHand: TutorialHand = null!;
 
     private activeRows: number = 5;
@@ -32,7 +31,6 @@ export class GridController extends Component {
     private isProcessing: boolean = false;
     private initialSpawnQueue: number[] = [];
 
-    // Tutorial State tracking
     private _hasInteracted: boolean = false;
     private _firstTNTShown: boolean = false;
     private _firstOrbShown: boolean = false;
@@ -41,7 +39,6 @@ export class GridController extends Component {
         input.on(Input.EventType.TOUCH_END, this.onGridTouch, this);
         this.prepareSpawnQueue();
 
-        // Safely get the TutorialHand component from the node
         if (this.tutorialHandNode) {
             this._tutorialHand = this.tutorialHandNode.getComponent(TutorialHand)!;
         }
@@ -83,7 +80,6 @@ export class GridController extends Component {
     private onGridTouch(event: EventTouch) {
         if (this.isProcessing || (GameManager.instance && GameManager.instance.isGameOver)) return;
 
-        // Hide hand upon first interaction
         if (this._tutorialHand && this._tutorialHand.node.active) {
             this._hasInteracted = true;
             this._tutorialHand.hide();
@@ -296,7 +292,6 @@ export class GridController extends Component {
                 });
             } else {
                 this.isProcessing = false;
-                // Check tutorial triggers after board stabilizes
                 this.checkTutorialTriggers();
             }
         }, maxSpawnDelay + 0.4);
@@ -305,45 +300,42 @@ export class GridController extends Component {
     private checkTutorialTriggers() {
         if (!this._tutorialHand) return;
 
-        // 1. Check for TNT first spawn
-        const tntPos = this.findFirstItem("TNT");
-        if (tntPos && !this._firstTNTShown) {
+        const tntWorldPos = this.findItemWorldPos("TNT");
+        if (tntWorldPos && !this._firstTNTShown) {
             this._firstTNTShown = true;
-            this._tutorialHand.showAt(tntPos);
+            this._tutorialHand.showAtWorld(tntWorldPos);
             return;
         }
 
-        // 2. Check for ORB first spawn
-        const orbPos = this.findFirstItem("ORB");
-        if (orbPos && !this._firstOrbShown) {
+        const orbWorldPos = this.findItemWorldPos("ORB");
+        if (orbWorldPos && !this._firstOrbShown) {
             this._firstOrbShown = true;
-            this._tutorialHand.showAt(orbPos);
+            this._tutorialHand.showAtWorld(orbWorldPos);
             return;
         }
 
-        // 3. Initial Hint: If player hasn't moved and hand isn't active
         if (!this._hasInteracted && !this._tutorialHand.isShowing) {
-            const hintMove = this.findHintMove();
-            if (hintMove) {
-                this._tutorialHand.showAt(hintMove);
+            const hintWorldPos = this.findHintMoveWorldPos();
+            if (hintWorldPos) {
+                this._tutorialHand.showAtWorld(hintWorldPos);
             }
         }
     }
 
-    private findFirstItem(name: string): Vec3 | null {
+    private findItemWorldPos(name: string): Vec3 | null {
         for (let r = 0; r < this.rows; r++) {
             for (let c = 0; c < this.cols; c++) {
                 const node = this.grid[r][c];
                 const p = node?.getComponent(GridPiece);
                 if (p && p.prefabName === name) {
-                    return v3(node!.position);
+                    return node!.getComponent(UITransform)!.convertToWorldSpaceAR(v3(0,0,0));
                 }
             }
         }
         return null;
     }
 
-    private findHintMove(): Vec3 | null {
+    private findHintMoveWorldPos(): Vec3 | null {
         for (let r = 0; r < this.rows; r++) {
             for (let c = 0; c < this.cols; c++) {
                 const node = this.grid[r][c];
@@ -364,7 +356,9 @@ export class GridController extends Component {
                         if (!np) touchesBlocker = true; 
                     }
                 }
-                if (hasMatch && touchesBlocker) return v3(node!.position);
+                if (hasMatch && touchesBlocker) {
+                    return node!.getComponent(UITransform)!.convertToWorldSpaceAR(v3(0,0,0));
+                }
             }
         }
         return null;
