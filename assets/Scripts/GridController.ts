@@ -64,14 +64,7 @@ export class GridController extends Component {
             this.instructionBoard.active = true;
             this.typewriter.play(introText); 
 
-            // Calculate duration: typing time + 1.25s stay time
-            const displayDuration = (introText.length * this.typewriter.typingSpeed) + 1.25;
-
-            this.scheduleOnce(() => {
-                if (this.instructionBoard) {
-                    this.instructionBoard.active = false;
-                }
-            }, displayDuration);
+            // Timer removed: The board now stays until onGridTouch is triggered.
         }
 
         this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
@@ -97,10 +90,7 @@ export class GridController extends Component {
                     brick.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
                     this.grid[r][c] = brick;
 
-                    // --- ATTACH ANIMATION AND TRIGGER WAVE POP ---
                     let animComp = brick.getComponent(BlockerAnimation) || brick.addComponent(BlockerAnimation);
-                    
-                    // Delay based on row + column index creates a diagonal wave effect
                     const staggerDelay = (r + c) * 0.04; 
                     animComp.playIntroEffect(1.25, staggerDelay);
                 }
@@ -110,6 +100,11 @@ export class GridController extends Component {
 
     private onGridTouch(event: EventTouch) {
         if (this.isProcessing || (GameManager.instance && GameManager.instance.isGameOver)) return;
+
+        // Hide instruction board on first tap
+        if (this.instructionBoard && this.instructionBoard.active) {
+            this.instructionBoard.active = false;
+        }
 
         if (this._tutorialHand && this._tutorialHand.node.active) {
             this._hasInteracted = true;

@@ -3,7 +3,7 @@ import { GridController } from './GridController';
 import { VictoryScreen } from './VictoryScreen'; 
 import { AudioContent } from './AudioContent'; 
 import { AdManager } from '../ScriptsReusable/AdManager';
-import { FlipClockLabel } from './FlipClockLabel'; // Import the new flip script
+import { FlipClockLabel } from './FlipClockLabel'; 
 const { ccclass, property } = _decorator;
 
 

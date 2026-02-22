@@ -4595,7 +4595,7 @@
       "__expectedType__": "cc.AudioClip"
     },
     "Loop": false,
-    "Volume": 1,
+    "Volume": 0.5,
     "PlayOnLoad": true,
     "OnPlayingStart": {
       "__id__": 121
@@ -4707,7 +4707,7 @@
       "__expectedType__": "cc.AudioClip"
     },
     "Loop": false,
-    "Volume": 1,
+    "Volume": 0.5,
     "PlayOnLoad": false,
     "OnPlayingStart": {
       "__id__": 126
