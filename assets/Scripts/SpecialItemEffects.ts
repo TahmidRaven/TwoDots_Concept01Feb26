@@ -17,6 +17,7 @@ export class SpecialItemEffects {
         const orbNode = grid[r][c];
         if (!orbNode) return;
         
+        const currentScale = orbNode.scale.x;
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
@@ -36,10 +37,7 @@ export class SpecialItemEffects {
         grid[r][c] = null;
         if (!targetColorId) { orbNode.destroy(); onComplete(); return; }
 
-        // --- PLAY ORB LIGHTNING SOUND ---
-        if (GameManager.instance) {
-            GameManager.instance.playAudio("ORBlightning");
-        }
+        if (GameManager.instance) GameManager.instance.playAudio("ORBlightning");
 
         const colorMap: { [key: string]: string } = {
             "blue": "#00FFFF", "red": "#FF3131", "green": "#39FF14", "yellow": "#FFF01F"
@@ -86,7 +84,7 @@ export class SpecialItemEffects {
                     }
                 })
                 .delay(syncPopDelay)
-                .to(0.05, { scale: v3(1.2, 1.2, 1.2) }) 
+                .to(0.05, { scale: v3(currentScale * 1.2, currentScale * 1.2, 1) }) 
                 .to(popDuration, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
                 .call(() => {
                     playEffect(targetData.pos, targetColorId);
@@ -95,19 +93,12 @@ export class SpecialItemEffects {
                 .start();
         });
 
-        const cleanupTriggerTime = drawWindow + holdTime;
-
         tween(orbNode)
-            .to(0.15, { scale: v3(1.25, 1.25, 1.25) }) 
-            .delay(cleanupTriggerTime)
-            .call(() => {
-                if (lightning) lightning.clearWeb(); 
-            })
+            .to(0.15, { scale: v3(currentScale * 1.25, currentScale * 1.25, 1) }) 
+            .delay(drawWindow + holdTime)
+            .call(() => { if (lightning) lightning.clearWeb(); })
             .to(0.1, { scale: v3(0, 0, 0) })
-            .call(() => {
-                orbNode.destroy();
-                onComplete(); 
-            })
+            .call(() => { orbNode.destroy(); onComplete(); })
             .start();
     }
 
@@ -130,10 +121,7 @@ export class SpecialItemEffects {
         grid[r][c] = null;
 
         setTimeout(() => {
-            // --- PLAY TNT EXPLOSION SOUND ---
-            if (GameManager.instance) {
-                GameManager.instance.playAudio("TNTexplosion");
-            }
+            if (GameManager.instance) GameManager.instance.playAudio("TNTexplosion");
 
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
@@ -146,9 +134,7 @@ export class SpecialItemEffects {
                             const piece = target.getComponent(GridPiece);
                             const colorId = piece ? piece.colorId : "blocker";
 
-                            if (!piece && GameManager.instance) {
-                                GameManager.instance.registerBlockerDestroyed();
-                            }
+                            if (!piece && GameManager.instance) GameManager.instance.registerBlockerDestroyed();
 
                             grid[nr][nc] = null;
                             tween(target).to(0.1, { scale: v3(0, 0, 0) }).call(() => { 

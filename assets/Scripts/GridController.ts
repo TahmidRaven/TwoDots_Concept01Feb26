@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, CCFloat, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite } from 'cc';
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
@@ -21,19 +21,21 @@ export class GridController extends Component {
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
 
+    @property({ type: CCFloat, tooltip: "Scale multiplier for the entire grid and its items" }) 
+    public gridScale: number = 0.8; 
+
     @property(LightningEffect) lightning: LightningEffect = null;
     
     @property(Node) tutorialHandNode: Node = null!; 
     private _tutorialHand: TutorialHand = null!;
 
-    // --- INSTRUCTION BOARD ---
     @property(Node) instructionBoard: Node = null!;
     @property(TypewriterEffect) typewriter: TypewriterEffect = null!;
 
     private activeRows: number = 5;
     private activeCols: number = 3;
     private grid: (Node | null)[][] = [];
-    private actualCellSize: number = 83;
+    private actualCellSize: number = 93;
     private isProcessing: boolean = false;
     private initialSpawnQueue: number[] = [];
 
@@ -63,8 +65,6 @@ export class GridController extends Component {
             const introText = "Destroy 66 Bricks to Win";
             this.instructionBoard.active = true;
             this.typewriter.play(introText); 
-
-            // Timer removed: The board now stays until onGridTouch is triggered.
         }
 
         this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
@@ -73,7 +73,8 @@ export class GridController extends Component {
     private generateBlockerGrid() {
         if (!this.blockerPrefab) return;
         const temp = instantiate(this.blockerPrefab);
-        this.actualCellSize = temp.getComponent(UITransform)?.contentSize.width || 83;
+        // Spacing is based on prefab width * gridScale
+        this.actualCellSize = (temp.getComponent(UITransform)?.contentSize.width || 83) * this.gridScale; 
         temp.destroy();
 
         const offsetX = (this.cols - 1) * this.actualCellSize / 2;
@@ -87,6 +88,10 @@ export class GridController extends Component {
                 } else {
                     const brick = instantiate(this.blockerPrefab);
                     brick.parent = this.node;
+                    
+                    // Set visual scale
+                    brick.setScale(v3(this.gridScale, this.gridScale, 1));
+                    
                     brick.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
                     this.grid[r][c] = brick;
 
@@ -101,7 +106,6 @@ export class GridController extends Component {
     private onGridTouch(event: EventTouch) {
         if (this.isProcessing || (GameManager.instance && GameManager.instance.isGameOver)) return;
 
-        // Hide instruction board on first tap
         if (this.instructionBoard && this.instructionBoard.active) {
             this.instructionBoard.active = false;
         }
@@ -111,7 +115,7 @@ export class GridController extends Component {
             this._tutorialHand.hide();
         }
 
-        const uiTransform = this.node.getComponent(UITransform);
+        const uiTransform = this.node.getComponent(UITransform)!;
         const localPos = uiTransform.convertToNodeSpaceAR(v3(event.getUILocation().x, event.getUILocation().y, 0));
         const totalW = (this.cols - 1) * this.actualCellSize;
         const totalH = (this.rows - 1) * this.actualCellSize;
@@ -213,6 +217,7 @@ export class GridController extends Component {
         const effect = instantiate(this.blockDestroyPrefab);
         effect.parent = this.node;
         effect.setPosition(pos);
+        effect.setScale(v3(this.gridScale, this.gridScale, 1)); // Scale effect too
     
         if (GameManager.instance) {
             if (colorId === "blocker") {
@@ -402,6 +407,8 @@ export class GridController extends Component {
 
             const ball = instantiate(this.ballPrefabs[prefabIdx]);
             ball.parent = this.node;
+            ball.setScale(v3(this.gridScale, this.gridScale, 1));
+
             const piece = ball.getComponent(GridPiece) || ball.addComponent(GridPiece);
             piece.row = targetRow; piece.col = c;
             piece.prefabName = this.ballPrefabs[prefabIdx].name;
@@ -437,8 +444,12 @@ export class GridController extends Component {
         const offsetX = (this.cols - 1) * this.actualCellSize / 2;
         const offsetY = (this.rows - 1) * this.actualCellSize / 2;
         item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
+        
         item.setScale(v3(0, 0, 0));
         this.grid[r][c] = item;
-        tween(item).to(0.2, { scale: v3(1, 1, 1) }, { easing: 'backOut' }).call(() => this.applyGravity()).start();
+        tween(item)
+            .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
+            .call(() => this.applyGravity())
+            .start();
     }
 }
