@@ -1,7 +1,7 @@
 import { _decorator, Component, Label, Node, CCInteger, AudioSource } from 'cc';
 import { GridController } from './GridController';
 import { VictoryScreen } from './VictoryScreen'; 
-import { AudioContent } from './AudioContent'; // Import your AudioContent component
+import { AudioContent } from './AudioContent'; 
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
@@ -18,11 +18,25 @@ export class GameManager extends Component {
     
     @property(Node) victoryScreen: Node = null!;
 
+    // --- NEW CAP TOGGLE ---
+    @property({ tooltip: "If unchecked, TNT and ORBs can be spawned infinitely." })
+    public useSpecialItemCap: boolean = false;
+
     @property(Label) tntCountLabel: Label = null!; 
-    @property({ type: CCInteger }) totalTntAllowed: number = 30;
+    @property({ 
+        type: CCInteger,
+        // Only shows this field in the Inspector if useSpecialItemCap is true
+        visible() { return (this as any).useSpecialItemCap; } 
+    }) 
+    public totalTntAllowed: number = 30;
 
     @property(Label) orbCountLabel: Label = null!; 
-    @property({ type: CCInteger }) totalOrbAllowed: number = 30;
+    @property({ 
+        type: CCInteger,
+        // Only shows this field in the Inspector if useSpecialItemCap is true
+        visible() { return (this as any).useSpecialItemCap; } 
+    }) 
+    public totalOrbAllowed: number = 30;
 
     // --- AUDIO LIST REFERENCE ---
     @property([AudioContent])
@@ -41,10 +55,8 @@ export class GameManager extends Component {
             this.victoryScreen.active = false;
         }
 
-        // 1. Initialize AudioSources for all nodes in the list
         this.audioList.forEach(content => {
             if (content && content.AudioClip) {
-                // Ensure the node has an AudioSource and map it
                 let source = content.getComponent(AudioSource);
                 if (!source) {
                     source = content.addComponent(AudioSource);
@@ -53,7 +65,7 @@ export class GameManager extends Component {
                 source.clip = content.AudioClip;
                 source.loop = content.Loop;
                 source.volume = content.Volume;
-                source.playOnAwake = false; // We control this manually
+                source.playOnAwake = false; 
                 
                 content.AudioSource = source;
 
@@ -70,13 +82,9 @@ export class GameManager extends Component {
             this.gridController.initGrid();
         }
 
-        // 2. Play BGM explicitly on start
         this.playAudio("BGM");
     }
 
-    /**
-     * Plays audio by searching for the AudioName string in the audioList array
-     */
     public playAudio(name: string) {
         const content = this.audioList.find(a => a.AudioName === name);
         if (content && content.AudioSource) {
@@ -96,8 +104,6 @@ export class GameManager extends Component {
             content.AudioSource.stop();
         }
     }
-
-    // ... (rest of your logic for moves and blockers remains the same)
 
     public decrementMoves() {
         if (this._isGameOver) return;
@@ -144,11 +150,19 @@ export class GameManager extends Component {
         this.updateUI();
     }
 
+    /**
+     * Updated logic: returns true if cap is disabled OR if we are under the limit.
+     */
     public get canSpawnTNT(): boolean {
+        if (!this.useSpecialItemCap) return true;
         return this._currentTntUsed < this.totalTntAllowed;
     }
 
+    /**
+     * Updated logic: returns true if cap is disabled OR if we are under the limit.
+     */
     public get canSpawnOrb(): boolean {
+        if (!this.useSpecialItemCap) return true;
         return this._currentOrbUsed < this.totalOrbAllowed;
     }
 
@@ -157,8 +171,19 @@ export class GameManager extends Component {
         if (this.movesTextLabel) this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
         if (this.blockersLabel) this.blockersLabel.string = `${this._remainingBlockers}`;
         if (this.bricksTextLabel) this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
-        if (this.tntCountLabel) this.tntCountLabel.string = `${this._currentTntUsed}/${this.totalTntAllowed}`;
-        if (this.orbCountLabel) this.orbCountLabel.string = `${this._currentOrbUsed}/${this.totalOrbAllowed}`;
+        
+        // Show "Current/Max" if capped, otherwise just show "Current"
+        if (this.tntCountLabel) {
+            this.tntCountLabel.string = this.useSpecialItemCap 
+                ? `${this._currentTntUsed}/${this.totalTntAllowed}` 
+                : `${this._currentTntUsed}`;
+        }
+        
+        if (this.orbCountLabel) {
+            this.orbCountLabel.string = this.useSpecialItemCap 
+                ? `${this._currentOrbUsed}/${this.totalOrbAllowed}` 
+                : `${this._currentOrbUsed}`;
+        }
     }
 
     public get isGameOver(): boolean {
