@@ -1,8 +1,9 @@
-import { _decorator, Component, Label, Node, CCInteger, AudioSource } from 'cc';
+import { _decorator, Component, Label, Node, CCInteger, AudioSource, Color } from 'cc'; // Added Color
 import { GridController } from './GridController';
 import { VictoryScreen } from './VictoryScreen'; 
 import { AudioContent } from './AudioContent'; 
 import { AdManager } from '../ScriptsReusable/AdManager';
+import { FlipClockLabel } from './FlipClockLabel'; // Import the new flip script
 const { ccclass, property } = _decorator;
 
 
@@ -27,7 +28,6 @@ export class GameManager extends Component {
     @property(Label) tntCountLabel: Label = null!; 
     @property({ 
         type: CCInteger,
-        // Only shows this field in the Inspector if useSpecialItemCap is true
         visible() { return (this as any).useSpecialItemCap; } 
     }) 
     public totalTntAllowed: number = 30;
@@ -35,7 +35,6 @@ export class GameManager extends Component {
     @property(Label) orbCountLabel: Label = null!; 
     @property({ 
         type: CCInteger,
-        // Only shows this field in the Inspector if useSpecialItemCap is true
         visible() { return (this as any).useSpecialItemCap; } 
     }) 
     public totalOrbAllowed: number = 30;
@@ -45,7 +44,7 @@ export class GameManager extends Component {
     public audioList: AudioContent[] = [];
 
     private _isGameOver: boolean = false;
-    private _currentMoves: number = 200; 
+    private _currentMoves: number = 99; 
     private _remainingBlockers: number = 66; 
 
     private _currentTntUsed: number = 0;
@@ -79,7 +78,8 @@ export class GameManager extends Component {
     }
 
     start() {
-        this.updateUI();
+        // Pass true to skip animation on the very first frame
+        this.updateUI(true); 
         if (this.gridController) {
             this.gridController.initGrid();
         }
@@ -111,6 +111,12 @@ export class GameManager extends Component {
     public decrementMoves() {
         if (this._isGameOver) return;
         this._currentMoves--;
+
+        // Visual feedback for low moves
+        if (this.movesLabel && this._currentMoves <= 5) {
+            this.movesLabel.color = Color.RED;
+        }
+
         this.updateUI();
 
         if (this._currentMoves <= 0 && this._remainingBlockers > 0) {
@@ -155,29 +161,44 @@ export class GameManager extends Component {
         this.updateUI();
     }
 
-    /**
-     * Updated logic: returns true if cap is disabled OR if we are under the limit.
-     */
     public get canSpawnTNT(): boolean {
         if (!this.useSpecialItemCap) return true;
         return this._currentTntUsed < this.totalTntAllowed;
     }
 
-    /**
-     * Updated logic: returns true if cap is disabled OR if we are under the limit.
-     */
     public get canSpawnOrb(): boolean {
         if (!this.useSpecialItemCap) return true;
         return this._currentOrbUsed < this.totalOrbAllowed;
     }
 
-    private updateUI() {
-        if (this.movesLabel) this.movesLabel.string = `${this._currentMoves}`;
+    /**
+     * @param skipAnimation set to true for the initial start frame
+     */
+    private updateUI(skipAnimation: boolean = false) {
+        // --- MOVES LABEL FLIP ---
+        if (this.movesLabel) {
+            if (skipAnimation) {
+                this.movesLabel.string = `${this._currentMoves}`;
+            } else {
+                let flipper = this.movesLabel.getComponent(FlipClockLabel) || this.movesLabel.addComponent(FlipClockLabel);
+                flipper.flipTo(`${this._currentMoves}`);
+            }
+        }
+
+        // --- BLOCKERS LABEL FLIP ---
+        if (this.blockersLabel) {
+            if (skipAnimation) {
+                this.blockersLabel.string = `${this._remainingBlockers}`;
+            } else {
+                let flipper = this.blockersLabel.getComponent(FlipClockLabel) || this.blockersLabel.addComponent(FlipClockLabel);
+                flipper.flipTo(`${this._remainingBlockers}`);
+            }
+        }
+
+        // Static Text Labels
         if (this.movesTextLabel) this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
-        if (this.blockersLabel) this.blockersLabel.string = `${this._remainingBlockers}`;
         if (this.bricksTextLabel) this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
         
-        // Show "Current/Max" if capped, otherwise just show "Current"
         if (this.tntCountLabel) {
             this.tntCountLabel.string = this.useSpecialItemCap 
                 ? `${this._currentTntUsed}/${this.totalTntAllowed}` 
