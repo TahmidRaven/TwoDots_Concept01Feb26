@@ -1,10 +1,11 @@
-import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite, Label } from 'cc';
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
 import { GridShuffler } from './GridShuffler';
 import { LightningEffect } from './LightningEffect';
 import { TutorialHand } from './TutorialHand';
+import { TypewriterEffect } from './TypewriterEffect'; 
 
 const { ccclass, property } = _decorator;
 
@@ -24,6 +25,10 @@ export class GridController extends Component {
     @property(Node) tutorialHandNode: Node = null!; 
     private _tutorialHand: TutorialHand = null!;
 
+    // --- INSTRUCTION BOARD ---
+    @property(Node) instructionBoard: Node = null!;
+    @property(TypewriterEffect) typewriter: TypewriterEffect = null!;
+
     private activeRows: number = 5;
     private activeCols: number = 3;
     private grid: (Node | null)[][] = [];
@@ -42,6 +47,8 @@ export class GridController extends Component {
         if (this.tutorialHandNode) {
             this._tutorialHand = this.tutorialHandNode.getComponent(TutorialHand)!;
         }
+
+        if (this.instructionBoard) this.instructionBoard.active = false;
     }
 
     private prepareSpawnQueue() {
@@ -50,6 +57,12 @@ export class GridController extends Component {
 
     public initGrid() {
         this.generateBlockerGrid();
+        
+        if (this.instructionBoard && this.typewriter) {
+            this.instructionBoard.active = true;
+            this.typewriter.play("Destroy 66 Bricks to Win"); 
+        }
+
         this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
     }
 
