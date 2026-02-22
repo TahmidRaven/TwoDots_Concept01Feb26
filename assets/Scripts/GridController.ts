@@ -59,8 +59,18 @@ export class GridController extends Component {
         this.generateBlockerGrid();
         
         if (this.instructionBoard && this.typewriter) {
+            const introText = "Destroy 66 Bricks to Win";
             this.instructionBoard.active = true;
-            this.typewriter.play("Destroy 66 Bricks to Win"); 
+            this.typewriter.play(introText); 
+
+            // Calculate duration: (chars * speed) + 2.25s extra stay time
+            const displayDuration = (introText.length * this.typewriter.typingSpeed) + 2.25;
+
+            this.scheduleOnce(() => {
+                if (this.instructionBoard) {
+                    this.instructionBoard.active = false;
+                }
+            }, displayDuration);
         }
 
         this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
