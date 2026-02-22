@@ -2,7 +2,9 @@ import { _decorator, Component, Label, Node, CCInteger, AudioSource } from 'cc';
 import { GridController } from './GridController';
 import { VictoryScreen } from './VictoryScreen'; 
 import { AudioContent } from './AudioContent'; 
+import { AdManager } from '../ScriptsReusable/AdManager';
 const { ccclass, property } = _decorator;
+
 
 @ccclass('GameManager')
 export class GameManager extends Component {
@@ -83,6 +85,7 @@ export class GameManager extends Component {
         }
 
         this.playAudio("BGM");
+        AdManager.gameReady();
     }
 
     public playAudio(name: string) {
@@ -130,6 +133,8 @@ export class GameManager extends Component {
     private showGameOver(isWin: boolean) {
         if (this._isGameOver) return;
         this._isGameOver = true;
+
+        AdManager.gameEnd();
 
         if (this.victoryScreen) {
             this.victoryScreen.active = true;

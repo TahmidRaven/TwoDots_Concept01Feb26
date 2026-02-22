@@ -1,4 +1,5 @@
 import { _decorator, Component, Vec3, tween, UIOpacity, Node, Label } from 'cc';
+import { AdManager } from '../ScriptsReusable/AdManager';
 const { ccclass, property, requireComponent } = _decorator;
 
 @ccclass('VictoryScreen')
