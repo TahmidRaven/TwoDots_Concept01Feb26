@@ -3825,7 +3825,7 @@
     },
     "_enabled": true,
     "__prefab": null,
-    "_opacity": 235,
+    "_opacity": 89,
     "_id": "f4Txo0sl9MNoav0Bq6PyfA"
   },
   {
@@ -4216,8 +4216,8 @@
     "__prefab": null,
     "_contentSize": {
       "__type__": "cc.Size",
-      "width": 734.1395874023438,
-      "height": 45.199999999999996
+      "width": 806.6795654296875,
+      "height": 65.19999999999999
     },
     "_anchorPoint": {
       "__type__": "cc.Vec2",
@@ -4246,7 +4246,7 @@
       "b": 255,
       "a": 255
     },
-    "_string": "©2026 Playdots. Inc All Rights Researved.\nPlaydots, the playdots logo and Twodots are trademarks of Playdots. Inc",
+    "_string": "@2026 Take-Two Interactive Software Inc. Published by Playdots, Inc.\nPlaydots, the Playdots logo, Two Dots characters and all related titles and logos\nare trademarks of Take-Two Interactive Software, Inc. All rights reserved.",
     "_horizontalAlign": 1,
     "_verticalAlign": 1,
     "_actualFontSize": 20,
