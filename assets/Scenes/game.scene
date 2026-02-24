@@ -199,7 +199,7 @@
     "_priority": 0,
     "_fov": 45,
     "_fovAxis": 0,
-    "_orthoHeight": 960,
+    "_orthoHeight": 959.9999999999999,
     "_near": 0,
     "_far": 2000,
     "_color": {
@@ -3172,23 +3172,23 @@
     },
     "ballPrefabs": [
       {
-        "__uuid__": "6483ef60-94eb-4fd9-a17e-8f41fbb2b6ed",
+        "__uuid__": "dfd075ec-d5fa-4c6b-8a2d-5785b45345f8",
         "__expectedType__": "cc.Prefab"
       },
       {
-        "__uuid__": "f62d2518-024f-4f78-948d-1e801868c022",
+        "__uuid__": "5eb05d45-2ae8-4dbc-9fd0-bb51ca733a3c",
+        "__expectedType__": "cc.Prefab"
+      },
+      {
+        "__uuid__": "1355a7ac-7cb1-49e2-bf50-9d07601f8688",
+        "__expectedType__": "cc.Prefab"
+      },
+      {
+        "__uuid__": "31a23683-f7b8-42d6-935e-cad3a3ee5224",
         "__expectedType__": "cc.Prefab"
       },
       {
         "__uuid__": "38cb1250-732d-471f-8596-b59d0b39ac2e",
-        "__expectedType__": "cc.Prefab"
-      },
-      {
-        "__uuid__": "45b8c83d-2540-4ba7-91e4-dfb6b66d5e71",
-        "__expectedType__": "cc.Prefab"
-      },
-      {
-        "__uuid__": "c59cebf2-c714-4d10-8520-050128800c99",
         "__expectedType__": "cc.Prefab"
       },
       {

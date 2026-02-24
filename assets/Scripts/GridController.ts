@@ -227,9 +227,15 @@ export class GridController extends Component {
             }
         }
 
-        const colorMap: { [key: string]: string } = {
-            "blue": "#3498db", "red": "#e74c3c", "green": "#2ecc71", "yellow": "#f1c40f", "blocker": "#95a5a6"
-        };
+const colorMap: { [key: string]: string } = {
+    "blue": "#3E6895", 
+    "red": "#F7A5B1", 
+    "green": "#C0FFDA", 
+    "yellow": "#FBC367", // Removed the extra 'f'
+    "purple": "#B183E5", 
+    "gray": "#C1CADE", 
+    "blocker": "#2972C2"
+};
 
         const hex = colorMap[colorId] || "#ffffff";
         const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);

@@ -2,12 +2,12 @@
   "ver": "1.1.50",
   "importer": "prefab",
   "imported": true,
-  "uuid": "45b8c83d-2540-4ba7-91e4-dfb6b66d5e71",
+  "uuid": "dfd075ec-d5fa-4c6b-8a2d-5785b45345f8",
   "files": [
     ".json"
   ],
   "subMetas": {},
   "userData": {
-    "syncNodeName": "BlueSpiral"
+    "syncNodeName": "blue"
   }
 }

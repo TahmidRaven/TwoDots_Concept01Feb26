@@ -2,12 +2,12 @@
   "ver": "1.1.50",
   "importer": "prefab",
   "imported": true,
-  "uuid": "6483ef60-94eb-4fd9-a17e-8f41fbb2b6ed",
+  "uuid": "5eb05d45-2ae8-4dbc-9fd0-bb51ca733a3c",
   "files": [
     ".json"
   ],
   "subMetas": {},
   "userData": {
-    "syncNodeName": "GraySpiral"
+    "syncNodeName": "gray"
   }
 }

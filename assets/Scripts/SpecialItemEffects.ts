@@ -39,9 +39,14 @@ export class SpecialItemEffects {
 
         if (GameManager.instance) GameManager.instance.playAudio("ORBlightning");
 
-        const colorMap: { [key: string]: string } = {
-            "blue": "#00FFFF", "red": "#FF3131", "green": "#39FF14", "yellow": "#FFF01F"
-        };
+const colorMap: { [key: string]: string } = {
+    "blue": "#00FFFF", 
+    "red": "#FF3131", 
+    "green": "#39FF14", 
+    "yellow": "#FFF01F",
+    "purple": "#B183E5", 
+    "gray": "#C1CADE"     
+};
         const hex = colorMap[targetColorId] || "#FFFFFF";
 
         const orbUIT = orbNode.getComponent(UITransform);
