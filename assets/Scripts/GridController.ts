@@ -441,12 +441,19 @@ const colorMap: { [key: string]: string } = {
         this.createSpecialItem(this.orbPrefab, r, c, "ORB", colorId);
     }
 
+
     private createSpecialItem(prefab: Prefab, r: number, c: number, name: string, colorId: string = "") {
         const item = instantiate(prefab);
         item.parent = this.node;
         const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
         piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
         
+        // --- PASSING THE COLOR ID ---
+        if (name === "ORB" && colorId) {
+            SpecialItemEffects.setOrbColor(item, colorId);
+        }
+        // ---------------------
+
         const offsetX = (this.cols - 1) * this.actualCellSize / 2;
         const offsetY = (this.rows - 1) * this.actualCellSize / 2;
         item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
