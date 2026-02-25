@@ -3245,6 +3245,7 @@
     "typewriter": {
       "__id__": 75
     },
+    "idleThreshold": 5,
     "_id": "99I+84CzNCKZ6JqVp/OkTl"
   },
   {
