@@ -15,7 +15,10 @@ export class GridController extends Component {
     @property(Prefab) blockerPrefab: Prefab = null; 
     @property([Prefab]) ballPrefabs: Prefab[] = []; 
     @property(Prefab) tntPrefab: Prefab = null;
-    @property(Prefab) orbPrefab: Prefab = null; 
+
+    // UPDATED: Now uses an array to hold all color-specific orb prefabs
+    @property([Prefab]) orbPrefabs: Prefab[] = []; 
+
     @property(Prefab) blockDestroyPrefab: Prefab = null;
 
     @property({ type: CCInteger }) rows: number = 9;
@@ -73,7 +76,6 @@ export class GridController extends Component {
     private generateBlockerGrid() {
         if (!this.blockerPrefab) return;
         const temp = instantiate(this.blockerPrefab);
-        // Spacing is based on prefab width * gridScale
         this.actualCellSize = (temp.getComponent(UITransform)?.contentSize.width || 83) * this.gridScale; 
         temp.destroy();
 
@@ -88,10 +90,7 @@ export class GridController extends Component {
                 } else {
                     const brick = instantiate(this.blockerPrefab);
                     brick.parent = this.node;
-                    
-                    // Set visual scale
                     brick.setScale(v3(this.gridScale, this.gridScale, 1));
-                    
                     brick.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
                     this.grid[r][c] = brick;
 
@@ -217,7 +216,7 @@ export class GridController extends Component {
         const effect = instantiate(this.blockDestroyPrefab);
         effect.parent = this.node;
         effect.setPosition(pos);
-        effect.setScale(v3(this.gridScale, this.gridScale, 1)); // Scale effect too
+        effect.setScale(v3(this.gridScale, this.gridScale, 1)); 
     
         if (GameManager.instance) {
             if (colorId === "blocker") {
@@ -227,15 +226,15 @@ export class GridController extends Component {
             }
         }
 
-const colorMap: { [key: string]: string } = {
-    "blue": "#3E6895", 
-    "red": "#F7A5B1", 
-    "green": "#C0FFDA", 
-    "yellow": "#FBC367", // Removed the extra 'f'
-    "purple": "#B183E5", 
-    "gray": "#C1CADE", 
-    "blocker": "#2972C2"
-};
+        const colorMap: { [key: string]: string } = {
+            "blue": "#3E6895", 
+            "red": "#F7A5B1", 
+            "green": "#C0FFDA", 
+            "yellow": "#FBC367",
+            "purple": "#B183E5", 
+            "gray": "#C1CADE", 
+            "blocker": "#2972C2"
+        };
 
         const hex = colorMap[colorId] || "#ffffff";
         const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);
@@ -436,9 +435,16 @@ const colorMap: { [key: string]: string } = {
         this.createSpecialItem(this.tntPrefab, r, c, "TNT");
     }
 
+    // UPDATED: Now searches for the orb prefab corresponding to the ball's color
     private spawnOrbItem(r: number, c: number, colorId: string = "") {
-        if (!this.orbPrefab) { this.applyGravity(); return; }
-        this.createSpecialItem(this.orbPrefab, r, c, "ORB", colorId);
+        const orbPrefab = this.orbPrefabs.find(p => p.name.toLowerCase().includes(colorId.toLowerCase()));
+        
+        if (!orbPrefab) { 
+            console.warn(`[GridController] No orb prefab found containing color name: "${colorId}"`);
+            this.applyGravity(); 
+            return; 
+        }
+        this.createSpecialItem(orbPrefab, r, c, "ORB", colorId);
     }
 
 
@@ -448,12 +454,6 @@ const colorMap: { [key: string]: string } = {
         const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
         piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
         
-        // --- PASSING THE COLOR ID ---
-        if (name === "ORB" && colorId) {
-            SpecialItemEffects.setOrbColor(item, colorId);
-        }
-        // ---------------------
-
         const offsetX = (this.cols - 1) * this.actualCellSize / 2;
         const offsetY = (this.rows - 1) * this.actualCellSize / 2;
         item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));

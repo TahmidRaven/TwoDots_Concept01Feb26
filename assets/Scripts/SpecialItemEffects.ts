@@ -5,7 +5,6 @@ import { LightningEffect } from './LightningEffect';
 
 export class SpecialItemEffects {
 
-    // Helper to map color IDs to HEX strings
     private static readonly colorMap: { [key: string]: string } = {
         "blue": "#00FFFF", 
         "red": "#FF3131", 
@@ -14,17 +13,6 @@ export class SpecialItemEffects {
         "purple": "#B183E5", 
         "gray": "#C1CADE"     
     };
-
-    /**
-     * Sets the sprite color of an ORB based on its target colorId
-     */
-    public static setOrbColor(orbNode: Node, colorId: string) {
-        const hex = this.colorMap[colorId] || "#FFFFFF";
-        const orbSprite = orbNode.getComponent(Sprite) || orbNode.getComponentInChildren(Sprite);
-        if (orbSprite) {
-            orbSprite.color = new Color().fromHEX(hex);
-        }
-    }
 
     public static executeOrb(
         r: number, 
@@ -43,7 +31,6 @@ export class SpecialItemEffects {
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
-        // Fallback: If no color is assigned, find the first available ball color on the grid
         if (!targetColorId) {
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
@@ -59,9 +46,6 @@ export class SpecialItemEffects {
 
         grid[r][c] = null;
         if (!targetColorId) { orbNode.destroy(); onComplete(); return; }
-
-        // Ensure color is correct upon execution (in case it wasn't set)
-        this.setOrbColor(orbNode, targetColorId);
 
         if (GameManager.instance) GameManager.instance.playAudio("ORBlightning");
 
