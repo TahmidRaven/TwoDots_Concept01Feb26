@@ -14,7 +14,6 @@ export class SpecialItemEffects {
         "gray": "#C1CADE"     
     };
 
-    // Static counter to track active TNTs in a chain and prevent the game from getting stuck
     private static activeExplosions = 0;
 
     public static executeOrb(
@@ -98,6 +97,8 @@ export class SpecialItemEffects {
                 .call(() => {
                     playEffect(targetData.pos, targetColorId);
                     targetData.node.destroy();
+                    // Update UI after orb clears a set of colors
+                    if (GameManager.instance) (GameManager.instance as any).updateUI();
                 })
                 .start();
         });
@@ -107,7 +108,10 @@ export class SpecialItemEffects {
             .delay(drawWindow + holdTime)
             .call(() => { if (lightning) lightning.clearWeb(); })
             .to(0.1, { scale: v3(0, 0, 0) })
-            .call(() => { orbNode.destroy(); onComplete(); })
+            .call(() => { 
+                orbNode.destroy(); 
+                onComplete(); 
+            })
             .start();
     }
 
@@ -124,13 +128,11 @@ export class SpecialItemEffects {
         const tntNode = grid[r][c];
         if (!tntNode) return;
 
-        // Increment counter to block onComplete until all TNTs finish
         this.activeExplosions++;
         
         const anim = tntNode.getComponent(Animation);
         if (anim) anim.play();
         
-        // Null immediately to prevent infinite loops in recursion
         grid[r][c] = null;
 
         setTimeout(() => {
@@ -146,23 +148,19 @@ export class SpecialItemEffects {
 
                     const piece = target.getComponent(GridPiece);
                     
-                    // 1. CHAIN REACTION: Trigger another TNT if hit
                     if (piece && piece.prefabName === "TNT") {
                         this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning);
                         continue;
                     }
 
-                    // 2. BLOCKER CHECK (Inside 3x3 blast)
                     if (!piece) {
                         this.destroyBlockerAt(nr, nc, grid, playEffect);
                         continue;
                     }
 
-                    // 3. BALL DESTRUCTION + ADJACENT BLOCKER SEARCH (Up/Down/Left/Right)
                     const pos = v3(target.position);
                     const colorId = piece.colorId;
                     
-                    // Explode blockers adjacent to this ball (even if outside the 3x3 radius)
                     this.checkOutlierBlockers(nr, nc, grid, rows, cols, playEffect);
 
                     grid[nr][nc] = null;
@@ -176,6 +174,8 @@ export class SpecialItemEffects {
                         }).start();
                 }
             }
+            // Force a UI refresh after a 3x3 blast completes
+            if (GameManager.instance) (GameManager.instance as any).updateUI();
         }, 350);
 
         setTimeout(() => { 
@@ -183,7 +183,6 @@ export class SpecialItemEffects {
             
             this.activeExplosions--;
 
-            // Only release GridController once all TNTs in the chain are done
             if (this.activeExplosions <= 0) {
                 this.activeExplosions = 0; 
                 onComplete(); 
@@ -191,16 +190,12 @@ export class SpecialItemEffects {
         }, 1100);
     }
 
-    /**
-     * Finds and destroys blockers adjacent (strictly non-diagonal) to a destroyed ball
-     */
     private static checkOutlierBlockers(r: number, c: number, grid: (Node | null)[][], rows: number, cols: number, playEffect: any) {
         const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
         neighbors.forEach(([dr, dc]) => {
             const nr = r + dr, nc = c + dc;
             if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
                 const neighbor = grid[nr][nc];
-                // Destroy if neighbor exists and has no GridPiece (it's a blocker)
                 if (neighbor && !neighbor.getComponent(GridPiece)) {
                     this.destroyBlockerAt(nr, nc, grid, playEffect);
                 }
@@ -208,9 +203,6 @@ export class SpecialItemEffects {
         });
     }
 
-    /**
-     * Removes blocker from grid and updates win condition counter
-     */
     private static destroyBlockerAt(r: number, c: number, grid: (Node | null)[][], playEffect: any) {
         const blocker = grid[r][c];
         if (!blocker) return;
@@ -219,7 +211,9 @@ export class SpecialItemEffects {
         grid[r][c] = null;
         
         if (GameManager.instance) {
-            GameManager.instance.registerBlockerDestroyed(); // Updates BRICKS count
+            GameManager.instance.registerBlockerDestroyed();
+            // Critical fix: notify GameManager to refresh the FlipClockLabel
+            (GameManager.instance as any).updateUI(); 
         }
 
         tween(blocker)

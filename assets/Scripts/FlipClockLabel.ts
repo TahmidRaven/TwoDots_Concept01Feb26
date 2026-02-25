@@ -10,22 +10,23 @@ export class FlipClockLabel extends Component {
         this._label = this.getComponent(Label)!;
     }
 
-
     public flipTo(newValue: string) {
-        if (this._isAnimating || this._label.string === newValue) {
+        // If the value is already set, don't do anything
+        if (this._label.string === newValue) return;
+
+        // If currently animating, update the string immediately to keep data accurate
+        if (this._isAnimating) {
             this._label.string = newValue;
             return;
         }
 
         this._isAnimating = true;
 
-        // yo letts Fold this bitch (Scale Y to 0)
         tween(this.node)
             .to(0.12, { scale: v3(1, 0, 1) }, { easing: 'quadIn' })
             .call(() => {
                 this._label.string = newValue;
             })
-            // Unfold the next one number (Scale Y back to 1)
             .to(0.12, { scale: v3(1, 1, 1) }, { easing: 'quadOut' })
             .call(() => {
                 this._isAnimating = false;

@@ -60,7 +60,6 @@ export class GameManager extends Component {
         const content = this.audioList.find(a => a.AudioName === name);
         if (content && content.AudioSource) {
             content.AudioSource.play();
-            if (content.OnPlayingStart) content.OnPlayingStart.emit([content]);
         }
     }
 
@@ -76,11 +75,10 @@ export class GameManager extends Component {
         if (this._isGameOver) return;
         if (this._remainingBlockers > 0) {
             this._remainingBlockers--;
-            this.updateUI(); // Update UI immediately so it shows 0
+            this.updateUI(); 
         }
 
         if (this._remainingBlockers === 0) {
-            // Small delay to let the UI finish updating to 0 before showing Victory
             this.scheduleOnce(() => {
                 this.showGameOver(true);
             }, 0.1);
@@ -113,19 +111,29 @@ export class GameManager extends Component {
     }
 
     private updateUI(skipAnimation: boolean = false) {
+        // Update Move Count
         if (this.movesLabel) {
-            if (skipAnimation) this.movesLabel.string = `${this._currentMoves}`;
-            else (this.movesLabel.getComponent(FlipClockLabel) || this.movesLabel.addComponent(FlipClockLabel)).flipTo(`${this._currentMoves}`);
-        }
-        if (this.blockersLabel) {
-            if (skipAnimation) this.blockersLabel.string = `${this._remainingBlockers}`;
-            else (this.blockersLabel.getComponent(FlipClockLabel) || this.blockersLabel.addComponent(FlipClockLabel)).flipTo(`${this._remainingBlockers}`);
+            const val = `${this._currentMoves}`;
+            if (skipAnimation) this.movesLabel.string = val;
+            else (this.movesLabel.getComponent(FlipClockLabel) || this.movesLabel.addComponent(FlipClockLabel)).flipTo(val);
         }
 
-        // Updated singular/plural logic: If count is 0, it should be "BRICKS"
-        if (this.movesTextLabel) this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
-        if (this.bricksTextLabel) this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
+        // Update Bricks Count (Safe value check)
+        if (this.blockersLabel) {
+            const displayVal = `${Math.max(0, this._remainingBlockers)}`;
+            if (skipAnimation) this.blockersLabel.string = displayVal;
+            else (this.blockersLabel.getComponent(FlipClockLabel) || this.blockersLabel.addComponent(FlipClockLabel)).flipTo(displayVal);
+        }
+
+        // Singular/Plural Label Logic
+        if (this.movesTextLabel) {
+            this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
+        }
+        if (this.bricksTextLabel) {
+            this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
+        }
         
+        // Powerup Labels
         if (this.tntCountLabel) this.tntCountLabel.string = this.useSpecialItemCap ? `${this._currentTntUsed}/${this.totalTntAllowed}` : `${this._currentTntUsed}`;
         if (this.orbCountLabel) this.orbCountLabel.string = this.useSpecialItemCap ? `${this._currentOrbUsed}/${this.totalOrbAllowed}` : `${this._currentOrbUsed}`;
     }
