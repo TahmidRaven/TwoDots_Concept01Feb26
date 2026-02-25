@@ -1063,9 +1063,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 128,
-      "g": 0,
-      "b": 128,
+      "r": 67,
+      "g": 42,
+      "b": 76,
       "a": 255
     },
     "_string": "66",
@@ -1210,9 +1210,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 128,
-      "g": 0,
-      "b": 128,
+      "r": 67,
+      "g": 42,
+      "b": 76,
       "a": 255
     },
     "_string": "BRICKS",
@@ -1461,9 +1461,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 128,
-      "g": 0,
-      "b": 128,
+      "r": 67,
+      "g": 42,
+      "b": 76,
       "a": 255
     },
     "_string": "200",
@@ -1608,9 +1608,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 128,
-      "g": 0,
-      "b": 128,
+      "r": 67,
+      "g": 42,
+      "b": 76,
       "a": 255
     },
     "_string": "MOVES",
@@ -2934,9 +2934,9 @@
     "_dstBlendFactor": 4,
     "_color": {
       "__type__": "cc.Color",
-      "r": 128,
-      "g": 0,
-      "b": 128,
+      "r": 67,
+      "g": 42,
+      "b": 76,
       "a": 255
     },
     "_string": "Tap to Destory 66 Bricks ",

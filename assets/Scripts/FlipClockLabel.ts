@@ -11,23 +11,23 @@ export class FlipClockLabel extends Component {
     }
 
     public flipTo(newValue: string) {
-        // If the value is already set, don't do anything
         if (this._label.string === newValue) return;
 
-        // If currently animating, update the string immediately to keep data accurate
+        // Reset if already animating to handle rapid-fire updates
         if (this._isAnimating) {
-            this._label.string = newValue;
-            return;
+            tween(this.node).stop();
+            this.node.setScale(v3(1, 1, 1));
+            this._isAnimating = false;
         }
 
         this._isAnimating = true;
 
         tween(this.node)
-            .to(0.12, { scale: v3(1, 0, 1) }, { easing: 'quadIn' })
+            .to(0.1, { scale: v3(1, 0, 1) }, { easing: 'quadIn' })
             .call(() => {
                 this._label.string = newValue;
             })
-            .to(0.12, { scale: v3(1, 1, 1) }, { easing: 'quadOut' })
+            .to(0.1, { scale: v3(1, 1, 1) }, { easing: 'quadOut' })
             .call(() => {
                 this._isAnimating = false;
             })

@@ -36,6 +36,16 @@ export class GameManager extends Component {
     private _currentTntUsed: number = 0;
     private _currentOrbUsed: number = 0;
 
+    // Reactive setter ensures UI always updates when value changes
+    public get remainingBlockers(): number {
+        return this._remainingBlockers;
+    }
+
+    public set remainingBlockers(value: number) {
+        this._remainingBlockers = value;
+        this.updateUI(); 
+    }
+
     onLoad() {
         GameManager.instance = this;
         if (this.victoryScreen) this.victoryScreen.active = false;
@@ -73,12 +83,12 @@ export class GameManager extends Component {
 
     public registerBlockerDestroyed() {
         if (this._isGameOver) return;
-        if (this._remainingBlockers > 0) {
-            this._remainingBlockers--;
-            this.updateUI(); 
+        if (this.remainingBlockers > 0) {
+            // This triggers the 'set remainingBlockers' logic automatically
+            this.remainingBlockers--;
         }
 
-        if (this._remainingBlockers === 0) {
+        if (this.remainingBlockers === 0) {
             this.scheduleOnce(() => {
                 this.showGameOver(true);
             }, 0.1);
@@ -110,22 +120,20 @@ export class GameManager extends Component {
         return !this.useSpecialItemCap || this._currentOrbUsed < this.totalOrbAllowed;
     }
 
-    private updateUI(skipAnimation: boolean = false) {
-        // Update Move Count
+    public updateUI(skipAnimation: boolean = false) {
         if (this.movesLabel) {
             const val = `${this._currentMoves}`;
             if (skipAnimation) this.movesLabel.string = val;
             else (this.movesLabel.getComponent(FlipClockLabel) || this.movesLabel.addComponent(FlipClockLabel)).flipTo(val);
         }
 
-        // Update Bricks Count (Safe value check)
         if (this.blockersLabel) {
             const displayVal = `${Math.max(0, this._remainingBlockers)}`;
             if (skipAnimation) this.blockersLabel.string = displayVal;
             else (this.blockersLabel.getComponent(FlipClockLabel) || this.blockersLabel.addComponent(FlipClockLabel)).flipTo(displayVal);
         }
 
-        // Singular/Plural Label Logic
+        // Logic for singular vs plural text
         if (this.movesTextLabel) {
             this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
         }
@@ -133,7 +141,6 @@ export class GameManager extends Component {
             this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
         }
         
-        // Powerup Labels
         if (this.tntCountLabel) this.tntCountLabel.string = this.useSpecialItemCap ? `${this._currentTntUsed}/${this.totalTntAllowed}` : `${this._currentTntUsed}`;
         if (this.orbCountLabel) this.orbCountLabel.string = this.useSpecialItemCap ? `${this._currentOrbUsed}/${this.totalOrbAllowed}` : `${this._currentOrbUsed}`;
     }
