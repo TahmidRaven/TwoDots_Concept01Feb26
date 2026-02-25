@@ -242,8 +242,15 @@ export class GridController extends Component {
 
         const anim = effect.getComponent(Animation);
         if (anim) {
-            anim.play('blockDestoryAnimation2');
-            anim.on(Animation.EventType.FINISHED, () => { if (isValid(effect)) effect.destroy(); });
+            if (colorId === "blocker") {
+                anim.play('blockDestoryAnimation'); 
+            } else {
+                anim.play('blockDestoryAnimation2'); 
+            }
+
+            anim.on(Animation.EventType.FINISHED, () => { 
+                if (isValid(effect)) effect.destroy(); 
+            });
         } else {
             this.scheduleOnce(() => { if (isValid(effect)) effect.destroy(); }, 0.5);
         }

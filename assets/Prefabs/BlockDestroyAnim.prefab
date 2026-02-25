@@ -107,6 +107,10 @@
       {
         "__uuid__": "65cd835c-708d-4334-800a-ebfc55feff5d",
         "__expectedType__": "cc.AnimationClip"
+      },
+      {
+        "__uuid__": "746c5071-36ec-4706-8af4-d9f1ffc1e430",
+        "__expectedType__": "cc.AnimationClip"
       }
     ],
     "_defaultClip": {
@@ -173,6 +177,7 @@
       "__id__": 0
     },
     "fileId": "ebik4moN9M4aaKViwQxpGc",
+    "instance": null,
     "targetOverrides": null
   }
 ]
