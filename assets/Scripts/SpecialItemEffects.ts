@@ -207,7 +207,7 @@ export class SpecialItemEffects {
                     }
                 }
             }
-        }, 350);
+        }, 250);
 
         setTimeout(() => { 
             if (isValid(tntNode)) tntNode.destroy(); 
