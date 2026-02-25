@@ -23,13 +23,16 @@ export class GridController extends Component {
     @property({ type: CCFloat }) public gridScale: number = 0.8;
 
     @property(LightningEffect) lightning: LightningEffect = null;
+    
+    // Reference to your PNG Animation Node in the Hierarchy
+    @property(Node) lightningAnimNode: Node = null!; 
+
     @property(Node) tutorialHandNode: Node = null!;
     private _tutorialHand: TutorialHand = null!;
 
     @property(Node) instructionBoard: Node = null!;
     @property(TypewriterEffect) typewriter: TypewriterEffect = null!;
 
-    // Idle Logic
     @property({ type: CCFloat, tooltip: "Seconds of inactivity before showing a hint" })
     public idleThreshold: number = 5.0;
     private _idleTimer: number = 0;
@@ -120,7 +123,6 @@ export class GridController extends Component {
 
     private onGridTouch(event: EventTouch) {
         this._idleTimer = 0;
-
         if (this.isProcessing || (GameManager.instance && GameManager.instance.isGameOver)) return;
 
         if (this.instructionBoard && this.instructionBoard.active) {
@@ -156,7 +158,8 @@ export class GridController extends Component {
                 GameManager.instance.decrementMoves();
                 GameManager.instance.registerPowerupUsed("TNT");
             }
-            SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
+            // Passing lightningAnimNode here
+            SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning, this.lightningAnimNode);
             return;
         }
 
@@ -166,7 +169,8 @@ export class GridController extends Component {
                 GameManager.instance.decrementMoves();
                 GameManager.instance.registerPowerupUsed("ORB");
             }
-            SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning);
+            // Passing lightningAnimNode here
+            SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning, this.lightningAnimNode);
             return;
         }
 

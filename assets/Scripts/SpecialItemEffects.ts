@@ -27,18 +27,19 @@ export class SpecialItemEffects {
         cols: number, 
         playEffect: (pos: Vec3, colorId: string) => void, 
         onComplete: () => void,
-        lightning: LightningEffect
+        lightning: LightningEffect,
+        lightningAnimNode?: Node 
     ) {
         const orbNode = grid[r][c];
         if (!orbNode) return;
         
-        // Track this ORB as an active process so gravity doesn't start early
         this.activeExplosions++;
 
         const currentScale = orbNode.scale.x;
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
+        // ... [Logic to find targetColorId remains the same] ...
         if (!targetColorId) {
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
@@ -114,11 +115,28 @@ export class SpecialItemEffects {
         tween(orbNode)
             .to(0.15, { scale: v3(currentScale * 1.25, currentScale * 1.25, 1) }) 
             .delay(drawWindow + holdTime)
-            .call(() => { if (lightning) lightning.clearWeb(); })
+            .call(() => { 
+                if (lightning) lightning.clearWeb(); 
+                
+                // --- DYNAMIC COLOR PNG ANIMATION LOGIC ---
+                if (lightningAnimNode) {
+                    // Find the sprite to apply the color
+                    const sprite = lightningAnimNode.getComponent(Sprite) || lightningAnimNode.getComponentInChildren(Sprite);
+                    if (sprite) {
+                        sprite.color = new Color().fromHEX(hex);
+                    }
+
+                    const anim = lightningAnimNode.getComponent(Animation);
+                    if (anim) {
+                        anim.play(); 
+                    }
+                }
+                // ------------------------------------------
+            })
             .to(0.1, { scale: v3(0, 0, 0) })
             .call(() => { 
                 orbNode.destroy(); 
-                this.decrementExplosionCount(onComplete);
+                this.decrementExplosionCount(onComplete); 
             })
             .start();
     }
@@ -134,7 +152,8 @@ export class SpecialItemEffects {
         cols: number, 
         playEffect: (pos: Vec3, colorId: string) => void, 
         onComplete: () => void,
-        lightning: LightningEffect 
+        lightning: LightningEffect,
+        lightningAnimNode?: Node 
     ) {
         const tntNode = grid[r][c];
         if (!tntNode) return;
@@ -160,15 +179,13 @@ export class SpecialItemEffects {
                     const piece = target.getComponent(GridPiece);
                     
                     if (piece) {
-                        // Chain reaction: TNT
                         if (piece.prefabName === "TNT") {
-                            this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning);
+                            this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
                             continue;
                         }
 
-                        // Chain reaction: ORB (caught in blast)
                         if (piece.prefabName === "ORB") {
-                            this.executeOrb(nr, nc, grid, rows, cols, playEffect, onComplete, lightning);
+                            this.executeOrb(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
                             continue;
                         }
 
