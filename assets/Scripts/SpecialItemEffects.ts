@@ -32,11 +32,13 @@ export class SpecialItemEffects {
         const orbNode = grid[r][c];
         if (!orbNode) return;
         
+        // Track this ORB as an active process so gravity doesn't start early
+        this.activeExplosions++;
+
         const currentScale = orbNode.scale.x;
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
-        // If no color is assigned, pick the first valid color found on the grid
         if (!targetColorId) {
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
@@ -51,7 +53,11 @@ export class SpecialItemEffects {
         }
 
         grid[r][c] = null;
-        if (!targetColorId) { orbNode.destroy(); onComplete(); return; }
+        if (!targetColorId) { 
+            orbNode.destroy(); 
+            this.decrementExplosionCount(onComplete);
+            return; 
+        }
 
         if (GameManager.instance) GameManager.instance.playAudio("ORBlightning");
 
@@ -112,7 +118,7 @@ export class SpecialItemEffects {
             .to(0.1, { scale: v3(0, 0, 0) })
             .call(() => { 
                 orbNode.destroy(); 
-                onComplete(); 
+                this.decrementExplosionCount(onComplete);
             })
             .start();
     }
@@ -140,7 +146,6 @@ export class SpecialItemEffects {
         
         grid[r][c] = null;
 
-        // Brief delay to allow the TNT fuse animation to show
         setTimeout(() => {
             if (GameManager.instance) GameManager.instance.playAudio("TNTexplosion");
 
@@ -154,60 +159,59 @@ export class SpecialItemEffects {
 
                     const piece = target.getComponent(GridPiece);
                     
-                    // Chain reaction for other TNTs
-                    if (piece && piece.prefabName === "TNT") {
-                        this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning);
-                        continue;
-                    }
+                    if (piece) {
+                        // Chain reaction: TNT
+                        if (piece.prefabName === "TNT") {
+                            this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning);
+                            continue;
+                        }
 
-                    // Direct destruction for blockers (bricks)
-                    if (!piece) {
+                        // Chain reaction: ORB (caught in blast)
+                        if (piece.prefabName === "ORB") {
+                            this.executeOrb(nr, nc, grid, rows, cols, playEffect, onComplete, lightning);
+                            continue;
+                        }
+
+                        const pos = v3(target.position);
+                        const colorId = piece.colorId;
+                        this.checkOutlierBlockers(nr, nc, grid, rows, cols, playEffect);
+
+                        grid[nr][nc] = null;
+                        tween(target)
+                            .to(0.1, { scale: v3(0, 0, 0) })
+                            .call(() => { 
+                                if (isValid(target)) {
+                                    playEffect(pos, colorId);
+                                    target.destroy(); 
+                                }
+                            }).start();
+                    } else {
                         this.destroyBlockerAt(nr, nc, grid, playEffect);
-                        continue;
                     }
-
-                    // Destruction for regular balls
-                    const pos = v3(target.position);
-                    const colorId = piece.colorId;
-                    
-                    // Check if destroying this ball clears any neighboring blockers
-                    this.checkOutlierBlockers(nr, nc, grid, rows, cols, playEffect);
-
-                    grid[nr][nc] = null;
-                    tween(target)
-                        .to(0.1, { scale: v3(0, 0, 0) })
-                        .call(() => { 
-                            if (isValid(target)) {
-                                playEffect(pos, colorId);
-                                target.destroy(); 
-                            }
-                        }).start();
                 }
             }
         }, 350);
 
         setTimeout(() => { 
             if (isValid(tntNode)) tntNode.destroy(); 
-            
-            this.activeExplosions--;
-
-            if (this.activeExplosions <= 0) {
-                this.activeExplosions = 0; 
-                onComplete(); 
-            }
+            this.decrementExplosionCount(onComplete);
         }, 1100);
     }
 
-    /**
-     * Checks neighboring cells for blockers to destroy when an adjacent ball is popped.
-     */
+    private static decrementExplosionCount(onComplete: () => void) {
+        this.activeExplosions--;
+        if (this.activeExplosions <= 0) {
+            this.activeExplosions = 0; 
+            onComplete(); 
+        }
+    }
+
     private static checkOutlierBlockers(r: number, c: number, grid: (Node | null)[][], rows: number, cols: number, playEffect: any) {
         const neighbors = [[1, 0], [-1, 0], [0, 1], [0, -1]];
         neighbors.forEach(([dr, dc]) => {
             const nr = r + dr, nc = c + dc;
             if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) {
                 const neighbor = grid[nr][nc];
-                // If it has no GridPiece, it is considered a blocker
                 if (neighbor && !neighbor.getComponent(GridPiece)) {
                     this.destroyBlockerAt(nr, nc, grid, playEffect);
                 }
@@ -215,9 +219,6 @@ export class SpecialItemEffects {
         });
     }
 
-    /**
-     * Handles the actual destruction of a blocker and notifies the GameManager.
-     */
     private static destroyBlockerAt(r: number, c: number, grid: (Node | null)[][], playEffect: any) {
         const blocker = grid[r][c];
         if (!blocker) return;
@@ -226,7 +227,6 @@ export class SpecialItemEffects {
         grid[r][c] = null;
         
         if (GameManager.instance) {
-            // Updated call: this ensures the UI refresh logic is triggered immediately
             GameManager.instance.registerBlockerDestroyed(); 
         }
 
