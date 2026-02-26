@@ -199,7 +199,7 @@ export class SpecialItemEffects {
             }
         }, 1150); 
 
-        // 3. Final cleanup and return control to Grid (1.85s)
+        // 3. Final cleanup and return control to Grid (1.58s)
         setTimeout(() => { 
             if (isValid(tntNode)) tntNode.destroy(); 
             this.decrementExplosionCount(onComplete);
