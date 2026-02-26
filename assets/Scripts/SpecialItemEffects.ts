@@ -2,6 +2,8 @@ import { Node, v3, Vec3, tween, Animation, isValid, UITransform, Sprite, Color }
 import { GridPiece } from './GridPiece';
 import { GameManager } from './GameManager';
 import { LightningEffect } from './LightningEffect';
+// FIX: Added the BlockerAnimation import to resolve 'Cannot find name' error
+import { BlockerAnimation } from './BlockerAnimation'; 
 
 export class SpecialItemEffects {
     private static readonly colorMap: { [key: string]: string } = {
@@ -34,6 +36,24 @@ export class SpecialItemEffects {
         const anim = tntNode.getComponent(Animation);
         if (anim) anim.play();
         
+        // --- NEW: WARNING SHAKE FOR NEIGHBORING BLOCKERS ---
+        // This triggers as soon as the TNT is tapped
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                const nr = r + dr, nc = c + dc;
+                if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+
+                const target = grid[nr][nc];
+                if (target) {
+                    const bAnim = target.getComponent(BlockerAnimation);
+                    if (bAnim) {
+                        bAnim.playWarningShake(1.0); 
+                    }
+                }
+            }
+        }
+        // -----------------------------------------------------
+
         // Remove from logical grid immediately so other explosions don't re-trigger it
         grid[r][c] = null; 
 
@@ -49,7 +69,6 @@ export class SpecialItemEffects {
                     if (!target) continue;
 
                     const piece = target.getComponent(GridPiece);
-                    // Only trigger the NEXT TNT/ORB logic here to create the overlap
                     if (piece && piece.prefabName === "TNT") {
                         this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
                     } else if (piece && piece.prefabName === "ORB") {
@@ -74,7 +93,6 @@ export class SpecialItemEffects {
 
                     const piece = target.getComponent(GridPiece);
                     
-                    // Only handle non-special items here (special items were handled at 400ms)
                     if (piece) {
                         if (piece.prefabName === "TNT" || piece.prefabName === "ORB") continue;
 
@@ -100,7 +118,6 @@ export class SpecialItemEffects {
         }, 1150); 
 
         // PHASE C: VISUAL CLEANUP (1850ms)
-        // Destroy the TNT node and check if the grid can settle (gravity).
         setTimeout(() => { 
             if (isValid(tntNode)) tntNode.destroy();
             this.decrementExplosionCount(onComplete);
