@@ -23,8 +23,6 @@ export class GridController extends Component {
     @property({ type: CCFloat }) public gridScale: number = 0.8;
 
     @property(LightningEffect) lightning: LightningEffect = null;
-    
-    // Reference to your PNG Animation Node in the Hierarchy
     @property(Node) lightningAnimNode: Node = null!; 
 
     @property(Node) tutorialHandNode: Node = null!;
@@ -158,7 +156,6 @@ export class GridController extends Component {
                 GameManager.instance.decrementMoves();
                 GameManager.instance.registerPowerupUsed("TNT");
             }
-            // Passing lightningAnimNode here
             SpecialItemEffects.executeTNT(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning, this.lightningAnimNode);
             return;
         }
@@ -169,7 +166,6 @@ export class GridController extends Component {
                 GameManager.instance.decrementMoves();
                 GameManager.instance.registerPowerupUsed("ORB");
             }
-            // Passing lightningAnimNode here
             SpecialItemEffects.executeOrb(r, c, this.grid, this.rows, this.cols, this.playEffect.bind(this), () => this.applyGravity(), this.lightning, this.lightningAnimNode);
             return;
         }
@@ -435,11 +431,26 @@ export class GridController extends Component {
         item.parent = this.node;
         const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
         piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
+        
         const offsetX = (this.cols - 1) * this.actualCellSize / 2;
         const offsetY = (this.rows - 1) * this.actualCellSize / 2;
-        item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
+        const targetPos = v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0);
+        
+        item.setPosition(targetPos);
         item.setScale(v3(0, 0, 0));
         this.grid[r][c] = item;
-        tween(item).to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' }).call(() => this.applyGravity()).start();
+
+        // One-time 360 degree spin for both TNT and ORB items
+        tween(item)
+            .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
+            .call(() => {
+                item.angle = 0;
+                tween(item)
+                    .to(0.6, { angle: -360 }, { easing: 'quadOut' })
+                    .start();
+
+                this.applyGravity();
+            })
+            .start();
     }
 }
