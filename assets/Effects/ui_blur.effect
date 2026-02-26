@@ -1,0 +1,48 @@
+CCEffect %{
+  techniques:
+  - name: transparent
+    passes:
+    - vert: legacy/main-functions/general-vs:vert
+      frag: blur-fs:frag
+      blendState:
+        targets:
+        - blend: true
+          blendSrc: src_alpha
+          blendDst: one_minus_src_alpha
+          blendSrcAlpha: src_alpha
+          blendDstAlpha: one_minus_src_alpha
+      properties:
+        mainTexture: { value: white }
+        mainColor:   { value: [1, 1, 1, 1], editor: { type: color } }
+        blurStrength: { value: 0.01, editor: { slide: true, range: [0, 0.05], step: 0.001 } }
+}%
+
+CCProgram blur-fs %{
+  precision highp float;
+  #include <legacy/output>
+
+  in vec2 v_uv;
+  uniform sampler2D mainTexture;
+
+  uniform Constant {
+    vec4 mainColor;
+    float blurStrength;
+  };
+
+  vec4 frag () {
+    vec4 col = vec4(0.0);
+    // Simple 9-tap blur sampling
+    col += texture(mainTexture, v_uv + vec2(-blurStrength, -blurStrength));
+    col += texture(mainTexture, v_uv + vec2(0.0, -blurStrength));
+    col += texture(mainTexture, v_uv + vec2(blurStrength, -blurStrength));
+    col += texture(mainTexture, v_uv + vec2(-blurStrength, 0.0));
+    col += texture(mainTexture, v_uv + vec2(0.0, 0.0));
+    col += texture(mainTexture, v_uv + vec2(blurStrength, 0.0));
+    col += texture(mainTexture, v_uv + vec2(-blurStrength, blurStrength));
+    col += texture(mainTexture, v_uv + vec2(0.0, blurStrength));
+    col += texture(mainTexture, v_uv + vec2(blurStrength, blurStrength));
+    
+    col = (col / 9.0) * mainColor;
+    return CCFragOutput(col);
+  }
+}%

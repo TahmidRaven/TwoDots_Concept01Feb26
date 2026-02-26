@@ -6,12 +6,12 @@ import { LightningEffect } from './LightningEffect';
 export class SpecialItemEffects {
 
     private static readonly colorMap: { [key: string]: string } = {
-        "blue": "#00FFFF", 
+        "blue": "#FFF700", 
         "red": "#FF3131", 
         "green": "#39FF14", 
         "yellow": "#FFF01F",
         "purple": "#B183E5", 
-        "gray": "#C1CADE"     
+        "gray": "#FFF700"     
     };
 
     private static activeExplosions = 0;
@@ -39,7 +39,6 @@ export class SpecialItemEffects {
         const orbPiece = orbNode.getComponent(GridPiece);
         let targetColorId = orbPiece?.colorId || "";
 
-        // ... [Logic to find targetColorId remains the same] ...
         if (!targetColorId) {
             for (let row = 0; row < rows; row++) {
                 for (let col = 0; col < cols; col++) {
@@ -122,13 +121,16 @@ export class SpecialItemEffects {
                 if (lightningAnimNode) {
                     // Find the sprite to apply the color
                     const sprite = lightningAnimNode.getComponent(Sprite) || lightningAnimNode.getComponentInChildren(Sprite);
-                    if (sprite) {
-                        sprite.color = new Color().fromHEX(hex);
-                    }
+                    // if (sprite) {
+                    //     sprite.color = new Color().fromHEX(hex);
+                    // }
 
                     const anim = lightningAnimNode.getComponent(Animation);
                     if (anim) {
-                        anim.play(); 
+                        anim.play();
+                        setTimeout(() => {
+                            if (isValid(lightningAnimNode)) lightningAnimNode.active = true;
+                        }, 1000); // Assuming the animation is around 1.2s long 
                     }
                 }
                 // ------------------------------------------
@@ -144,77 +146,82 @@ export class SpecialItemEffects {
     /**
      * Executes the TNT effect: Explodes in a 3x3 area.
      */
-    public static executeTNT(
-        r: number, 
-        c: number, 
-        grid: (Node | null)[][], 
-        rows: number, 
-        cols: number, 
-        playEffect: (pos: Vec3, colorId: string) => void, 
-        onComplete: () => void,
-        lightning: LightningEffect,
-        lightningAnimNode?: Node 
-    ) {
-        const tntNode = grid[r][c];
-        if (!tntNode) return;
+// Inside SpecialItemEffects.ts
 
-        this.activeExplosions++;
-        
-        const anim = tntNode.getComponent(Animation);
-        if (anim) anim.play();
-        
-        grid[r][c] = null;
+public static executeTNT(
+    r: number, 
+    c: number, 
+    grid: (Node | null)[][], 
+    rows: number, 
+    cols: number, 
+    playEffect: (pos: Vec3, colorId: string) => void, 
+    onComplete: () => void,
+    lightning: LightningEffect,
+    lightningAnimNode?: Node 
+) {
+    const tntNode = grid[r][c];
+    if (!tntNode) return;
 
-        setTimeout(() => {
-            if (GameManager.instance) GameManager.instance.playAudio("TNTexplosion");
+    this.activeExplosions++;
+    
+    // 1. Play the PNG Sequence Animation
+    const anim = tntNode.getComponent(Animation);
+    if (anim) anim.play();
+    
+    grid[r][c] = null;
 
-            for (let dr = -1; dr <= 1; dr++) {
-                for (let dc = -1; dc <= 1; dc++) {
-                    const nr = r + dr, nc = c + dc;
-                    if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+    // 2. Trigger the "Pop" of surrounding blocks slightly after the fuse/start
+    // Increased delay slightly so the visual explosion matches the block removal
+    setTimeout(() => {
+        if (GameManager.instance) GameManager.instance.playAudio("TNTexplosion");
 
-                    const target = grid[nr][nc];
-                    if (!target) continue;
+        for (let dr = -1; dr <= 1; dr++) {
+            for (let dc = -1; dc <= 1; dc++) {
+                const nr = r + dr, nc = c + dc;
+                if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
 
-                    const piece = target.getComponent(GridPiece);
-                    
-                    if (piece) {
-                        if (piece.prefabName === "TNT") {
-                            this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
-                            continue;
-                        }
+                const target = grid[nr][nc];
+                if (!target) continue;
 
-                        if (piece.prefabName === "ORB") {
-                            this.executeOrb(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
-                            continue;
-                        }
-
-                        const pos = v3(target.position);
-                        const colorId = piece.colorId;
-                        this.checkOutlierBlockers(nr, nc, grid, rows, cols, playEffect);
-
-                        grid[nr][nc] = null;
-                        tween(target)
-                            .to(0.1, { scale: v3(0, 0, 0) })
-                            .call(() => { 
-                                if (isValid(target)) {
-                                    playEffect(pos, colorId);
-                                    target.destroy(); 
-                                }
-                            }).start();
-                    } else {
-                        this.destroyBlockerAt(nr, nc, grid, playEffect);
+                const piece = target.getComponent(GridPiece);
+                
+                if (piece) {
+                    if (piece.prefabName === "TNT") {
+                        this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
+                        continue;
                     }
+                    if (piece.prefabName === "ORB") {
+                        this.executeOrb(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
+                        continue;
+                    }
+
+                    const pos = v3(target.position);
+                    const colorId = piece.colorId;
+                    this.checkOutlierBlockers(nr, nc, grid, rows, cols, playEffect);
+
+                    grid[nr][nc] = null;
+                    tween(target)
+                        .to(0.1, { scale: v3(0, 0, 0) })
+                        .call(() => { 
+                            if (isValid(target)) {
+                                playEffect(pos, colorId);
+                                target.destroy(); 
+                            }
+                        }).start();
+                } else {
+                    this.destroyBlockerAt(nr, nc, grid, playEffect);
                 }
             }
-        }, 250);
+        }
+    }, 2300); // Adjusted from 250ms to 350ms to let the animation build up
 
-        setTimeout(() => { 
-            if (isValid(tntNode)) tntNode.destroy(); 
-            this.decrementExplosionCount(onComplete);
-        }, 1100);
-    }
-
+    // 3. Wait for the FULL animation duration (1.23s + small buffer) 
+    // before destroying the node and allowing gravity to settle the grid.
+    setTimeout(() => { 
+        if (isValid(tntNode)) tntNode.destroy(); 
+        this.decrementExplosionCount(onComplete);
+    }, 2800); // 1.3s ensures the 1.23s animation finishes completely
+}
     private static decrementExplosionCount(onComplete: () => void) {
         this.activeExplosions--;
         if (this.activeExplosions <= 0) {
