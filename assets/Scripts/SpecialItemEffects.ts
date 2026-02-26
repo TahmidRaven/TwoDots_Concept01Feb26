@@ -7,10 +7,13 @@ import { BlockerAnimation } from './BlockerAnimation';
 
 export class SpecialItemEffects {
     private static readonly colorMap: { [key: string]: string } = {
-        "blue": "#FFF700", "red": "#FF3131", "green": "#39FF14", 
-        "yellow": "#FFF01F", "purple": "#B183E5", "gray": "#FFF700"     
+        "blue": "#00b7ff", 
+        "red": "#FF3131", 
+        "green": "#39FF14", 
+        "yellow": "#FFF01F",
+        "purple": "#B183E5", 
+        "gray": "#b7c6e7"     
     };
-
     private static activeExplosions = 0;
 
     /**

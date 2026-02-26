@@ -18,27 +18,27 @@ export class LightningEffect extends Component {
         }
     }
 
-    public drawLightning(start: Vec3, end: Vec3, colorHex: string = "#82CAFF") {
+public drawLightning(start: Vec3, end: Vec3, colorHex: string = "#82CAFF") {
         if (!this.graphics) return;
 
         const segments = 8;
         const offset = 18;
 
-        // 1. Outer Glow
+        // 1. Outer Glow - Increased from 20 to 35
         let glowColor = new Color().fromHEX(colorHex);
         glowColor.a = 100; 
         this.graphics.strokeColor = glowColor;
-        this.graphics.lineWidth = 20;
+        this.graphics.lineWidth = 35; 
         this.renderPath(start, end, segments, offset);
 
-        // 2. Main Bolt
+        // 2. Main Bolt - Increased from 8 to 15
         this.graphics.strokeColor = new Color().fromHEX(colorHex);
-        this.graphics.lineWidth = 8; 
+        this.graphics.lineWidth = 15; 
         this.renderPath(start, end, segments, offset);
 
-        // 3. Inner Core
+        // 3. Inner Core - Increased from 3 to 6
         this.graphics.strokeColor = Color.WHITE;
-        this.graphics.lineWidth = 3; 
+        this.graphics.lineWidth = 6; 
         this.renderPath(start, end, segments, offset);
         
         // Internal auto-clear has been removed to allow sequential holding.
