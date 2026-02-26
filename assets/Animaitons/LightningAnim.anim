@@ -133,7 +133,7 @@
         "__expectedType__": "cc.SpriteFrame"
       },
       {
-        "__uuid__": "e3737513-5f1d-473a-9ba2-e092e0317f59@f9941",
+        "__uuid__": "fbbff4f6-fdcb-46f4-9c19-152d34165d80@f9941",
         "__expectedType__": "cc.SpriteFrame"
       }
     ]
@@ -191,7 +191,9 @@
         "leftTangent": 0,
         "leftTangentWeight": 1,
         "easingMethod": 0,
-        "__editorExtras__": null
+        "__editorExtras__": {
+          "broken": null
+        }
       }
     ],
     "preExtrapolation": 1,
@@ -219,7 +221,9 @@
         "leftTangent": 0,
         "leftTangentWeight": 1,
         "easingMethod": 0,
-        "__editorExtras__": null
+        "__editorExtras__": {
+          "broken": null
+        }
       }
     ],
     "preExtrapolation": 1,
