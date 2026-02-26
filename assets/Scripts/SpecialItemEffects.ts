@@ -17,7 +17,7 @@ export class SpecialItemEffects {
     private static activeExplosions = 0;
 
     /**
-     * Executes the Orb effect: Clears all items of a specific color across the grid.
+     * Executes the Orb effect: Clears all items of a specific color.
      */
     public static executeOrb(
         r: number, 
@@ -90,7 +90,7 @@ export class SpecialItemEffects {
             tween(targetData.node)
                 .delay(startDrawDelay)
                 .call(() => {
-                    if (lightning) {
+                    if (lightning && isValid(lightning.node)) {
                         const lUIT = lightning.getComponent(UITransform);
                         const nodeUIT = targetData.node.getComponent(UITransform);
                         if (lUIT && nodeUIT) {
@@ -116,28 +116,14 @@ export class SpecialItemEffects {
             .delay(drawWindow + holdTime)
             .call(() => { 
                 if (lightning) lightning.clearWeb(); 
-                
-                // --- DYNAMIC COLOR PNG ANIMATION LOGIC ---
-                if (lightningAnimNode) {
-                    // Find the sprite to apply the color
-                    const sprite = lightningAnimNode.getComponent(Sprite) || lightningAnimNode.getComponentInChildren(Sprite);
-                    // if (sprite) {
-                    //     sprite.color = new Color().fromHEX(hex);
-                    // }
-
+                if (lightningAnimNode && isValid(lightningAnimNode)) {
                     const anim = lightningAnimNode.getComponent(Animation);
-                    if (anim) {
-                        anim.play();
-                        setTimeout(() => {
-                            if (isValid(lightningAnimNode)) lightningAnimNode.active = true;
-                        }, 1000); // Assuming the animation is around 1.2s long 
-                    }
+                    if (anim) anim.play();
                 }
-                // ------------------------------------------
             })
             .to(0.1, { scale: v3(0, 0, 0) })
             .call(() => { 
-                orbNode.destroy(); 
+                if (isValid(orbNode)) orbNode.destroy(); 
                 this.decrementExplosionCount(onComplete); 
             })
             .start();
@@ -145,88 +131,86 @@ export class SpecialItemEffects {
 
     /**
      * Executes the TNT effect: Explodes in a 3x3 area.
+     * Synchronized for a 1.85s sequence duration.
      */
-// Inside SpecialItemEffects.ts
+    public static executeTNT(
+        r: number, 
+        c: number, 
+        grid: (Node | null)[][], 
+        rows: number, 
+        cols: number, 
+        playEffect: (pos: Vec3, colorId: string) => void, 
+        onComplete: () => void,
+        lightning: LightningEffect,
+        lightningAnimNode?: Node 
+    ) {
+        const tntNode = grid[r][c];
+        if (!tntNode) return;
 
-public static executeTNT(
-    r: number, 
-    c: number, 
-    grid: (Node | null)[][], 
-    rows: number, 
-    cols: number, 
-    playEffect: (pos: Vec3, colorId: string) => void, 
-    onComplete: () => void,
-    lightning: LightningEffect,
-    lightningAnimNode?: Node 
-) {
-    const tntNode = grid[r][c];
-    if (!tntNode) return;
+        this.activeExplosions++;
+        
+        // 1. Play the PNG Sequence Animation
+        const anim = tntNode.getComponent(Animation);
+        if (anim) anim.play();
+        
+        grid[r][c] = null;
 
-    this.activeExplosions++;
-    
-    // 1. Play the PNG Sequence Animation
-    const anim = tntNode.getComponent(Animation);
-    if (anim) anim.play();
-    
-    grid[r][c] = null;
+        // 2. Trigger the "Pop" of surrounding blocks at visual peak (750ms)
+        setTimeout(() => {
+            if (GameManager.instance) GameManager.instance.playAudio("TNTexplosion");
 
-    // 2. Trigger the "Pop" of surrounding blocks slightly after the fuse/start
-    // Increased delay slightly so the visual explosion matches the block removal
-    setTimeout(() => {
-        if (GameManager.instance) GameManager.instance.playAudio("TNTexplosion");
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    const nr = r + dr, nc = c + dc;
+                    if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
 
-        for (let dr = -1; dr <= 1; dr++) {
-            for (let dc = -1; dc <= 1; dc++) {
-                const nr = r + dr, nc = c + dc;
-                if (nr < 0 || nr >= rows || nc < 0 || nc >= cols) continue;
+                    const target = grid[nr][nc];
+                    if (!target) continue;
 
-                const target = grid[nr][nc];
-                if (!target) continue;
+                    const piece = target.getComponent(GridPiece);
+                    
+                    if (piece) {
+                        if (piece.prefabName === "TNT") {
+                            this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
+                            continue;
+                        }
+                        if (piece.prefabName === "ORB") {
+                            this.executeOrb(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
+                            continue;
+                        }
 
-                const piece = target.getComponent(GridPiece);
-                
-                if (piece) {
-                    if (piece.prefabName === "TNT") {
-                        this.executeTNT(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
-                        continue;
+                        const pos = v3(target.position);
+                        const colorId = piece.colorId;
+                        this.checkOutlierBlockers(nr, nc, grid, rows, cols, playEffect);
+
+                        grid[nr][nc] = null;
+                        tween(target)
+                            .to(0.1, { scale: v3(0, 0, 0) })
+                            .call(() => { 
+                                if (isValid(target)) {
+                                    playEffect(pos, colorId);
+                                    target.destroy(); 
+                                }
+                            }).start();
+                    } else {
+                        this.destroyBlockerAt(nr, nc, grid, playEffect);
                     }
-                    if (piece.prefabName === "ORB") {
-                        this.executeOrb(nr, nc, grid, rows, cols, playEffect, onComplete, lightning, lightningAnimNode);
-                        continue;
-                    }
-
-                    const pos = v3(target.position);
-                    const colorId = piece.colorId;
-                    this.checkOutlierBlockers(nr, nc, grid, rows, cols, playEffect);
-
-                    grid[nr][nc] = null;
-                    tween(target)
-                        .to(0.1, { scale: v3(0, 0, 0) })
-                        .call(() => { 
-                            if (isValid(target)) {
-                                playEffect(pos, colorId);
-                                target.destroy(); 
-                            }
-                        }).start();
-                } else {
-                    this.destroyBlockerAt(nr, nc, grid, playEffect);
                 }
             }
-        }
-    }, 2300); // Adjusted from 250ms to 350ms to let the animation build up
+        }, 1150); 
 
-    // 3. Wait for the FULL animation duration (1.23s + small buffer) 
-    // before destroying the node and allowing gravity to settle the grid.
-    setTimeout(() => { 
-        if (isValid(tntNode)) tntNode.destroy(); 
-        this.decrementExplosionCount(onComplete);
-    }, 2800); // 1.3s ensures the 1.23s animation finishes completely
-}
+        // 3. Final cleanup and return control to Grid (1.85s)
+        setTimeout(() => { 
+            if (isValid(tntNode)) tntNode.destroy(); 
+            this.decrementExplosionCount(onComplete);
+        }, 1580); 
+    }
+
     private static decrementExplosionCount(onComplete: () => void) {
         this.activeExplosions--;
         if (this.activeExplosions <= 0) {
             this.activeExplosions = 0; 
-            onComplete(); 
+            if (onComplete) onComplete(); 
         }
     }
 
