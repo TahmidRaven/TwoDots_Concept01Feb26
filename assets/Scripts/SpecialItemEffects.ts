@@ -36,8 +36,12 @@ export class SpecialItemEffects {
         this.activeExplosions++;
         
         // 1. Play the PNG Sequence Animation (1.85s total)
-        const anim = tntNode.getComponent(Animation);
-        if (anim) anim.play();
+        const vfxChild = tntNode.getChildByName("TNT");
+        const anim = vfxChild ? vfxChild.getComponent(Animation) : tntNode.getComponent(Animation);
+
+        if (anim) {
+            anim.play();
+        }
         
         // --- NEW: WARNING SHAKE FOR NEIGHBORING BLOCKERS ---
         // This triggers as soon as the TNT is tapped
@@ -222,7 +226,7 @@ export class SpecialItemEffects {
                 if (lightning) lightning.clearWeb();
 
            // -- REMOVED: THE LIGHTING PNG ANIMATION -- 
-           
+
                 // if (lightningAnimNode && isValid(lightningAnimNode)) {
                 //     const anim = lightningAnimNode.getComponent(Animation);
                 //     if (anim) anim.play();
