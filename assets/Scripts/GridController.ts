@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, CCFloat, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, CCFloat, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite, ParticleSystem2D } from 'cc';
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
@@ -17,6 +17,9 @@ export class GridController extends Component {
     @property(Prefab) tntPrefab: Prefab = null;
     @property([Prefab]) orbPrefabs: Prefab[] = [];
     @property(Prefab) blockDestroyPrefab: Prefab = null;
+    
+    // NEW: Property for the .plist particle effect
+    @property(Prefab) glowParticlePrefab: Prefab = null; 
 
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
@@ -226,6 +229,8 @@ export class GridController extends Component {
 
     public playEffect(pos: Vec3, colorId: string) {
         if (!this.blockDestroyPrefab) return;
+
+        // 1. Spawn existing Destruction Animation Prefab
         const effect = instantiate(this.blockDestroyPrefab);
         effect.parent = this.node;
         effect.setPosition(pos);
@@ -243,6 +248,30 @@ export class GridController extends Component {
         const hex = colorMap[colorId] || "#ffffff";
         const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);
         if (sprite) sprite.color = new Color().fromHEX(hex);
+
+// 2. NEW: Spawn the .plist Glow Particle at the same place
+if (this.glowParticlePrefab) {
+    const particlesNode = instantiate(this.glowParticlePrefab);
+    particlesNode.parent = this.node;
+    particlesNode.setPosition(pos);
+    particlesNode.setSiblingIndex(this.node.children.length);
+
+    const ps2d = particlesNode.getComponent(ParticleSystem2D);
+    if (ps2d) {
+        const targetColor = new Color().fromHEX(hex);
+        
+        // Assign to both start and end to ensure a solid color throughout life
+        ps2d.startColor = targetColor.clone();
+        ps2d.endColor = targetColor.clone();
+
+        // If the .plist has color variance (the black boxes in your screenshot), 
+        // set them to 0 to prevent the color from flickering or being "off-brand"
+        ps2d.startColorVar = new Color(0, 0, 0, 0);
+        ps2d.endColorVar = new Color(0, 0, 0, 0);
+
+        ps2d.resetSystem(); 
+    }
+}
 
         const anim = effect.getComponent(Animation);
         if (anim) {
@@ -297,50 +326,47 @@ export class GridController extends Component {
         this.scheduleOnce(() => { this.refillGrid(false); }, longestMove);
     }
 
-private refillGrid(isInitial: boolean = false) {
-    let spawnCount = 0;
-    let maxSpawnDelay = 0;
-    for (let c = 0; c < this.cols; c++) {
-        if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) continue;
-        for (let r = this.rows - 1; r >= 0; r--) {
-            if (this.grid[r][c] === null) {
-                let blockedFromAbove = false;
-                for (let k = r - 1; k >= 0; k--) {
-                    if (this.grid[k][c] !== null && !this.grid[k][c].getComponent(GridPiece)) {
-                        blockedFromAbove = true;
-                        break;
+    private refillGrid(isInitial: boolean = false) {
+        let spawnCount = 0;
+        let maxSpawnDelay = 0;
+        for (let c = 0; c < this.cols; c++) {
+            if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) continue;
+            for (let r = this.rows - 1; r >= 0; r--) {
+                if (this.grid[r][c] === null) {
+                    let blockedFromAbove = false;
+                    for (let k = r - 1; k >= 0; k--) {
+                        if (this.grid[k][c] !== null && !this.grid[k][c].getComponent(GridPiece)) {
+                            blockedFromAbove = true;
+                            break;
+                        }
+                    }
+                    if (!blockedFromAbove) {
+                        const delay = spawnCount * 0.05;
+                        this.spawnBallAtTop(c, r, delay, isInitial);
+                        maxSpawnDelay = Math.max(maxSpawnDelay, delay);
+                        spawnCount++;
                     }
                 }
-                if (!blockedFromAbove) {
-                    const delay = spawnCount * 0.05;
-                    this.spawnBallAtTop(c, r, delay, isInitial);
-                    maxSpawnDelay = Math.max(maxSpawnDelay, delay);
-                    spawnCount++;
+            }
+        }
+
+        this.scheduleOnce(() => {
+            this.node.children.forEach(child => {
+                const piece = child.getComponent(GridPiece);
+                if (piece && (piece.prefabName === "TNT" || piece.prefabName === "ORB")) {
+                    child.setSiblingIndex(this.node.children.length);
                 }
+            });
+
+            if (!GridShuffler.hasValidMoves(this.grid, this.rows, this.cols)) {
+                GridShuffler.shuffle(this.grid, this.rows, this.cols, this.actualCellSize, () => { this.refillGrid(false); });
+            } else {
+                this.isProcessing = false;
+                this._idleTimer = 0;
+                this.checkTutorialTriggers();
             }
-        }
+        }, maxSpawnDelay + 0.4);
     }
-
-    this.scheduleOnce(() => {
-        // --- Force Special Items to Top of Hierarchy ---
-        // After new balls are spawned, they become the newest children. 
-        // re-sort the TNT/ORB items to the end of the list so they render last (on top).
-        this.node.children.forEach(child => {
-            const piece = child.getComponent(GridPiece);
-            if (piece && (piece.prefabName === "TNT" || piece.prefabName === "ORB")) {
-                child.setSiblingIndex(this.node.children.length);
-            }
-        });
-
-        if (!GridShuffler.hasValidMoves(this.grid, this.rows, this.cols)) {
-            GridShuffler.shuffle(this.grid, this.rows, this.cols, this.actualCellSize, () => { this.refillGrid(false); });
-        } else {
-            this.isProcessing = false;
-            this._idleTimer = 0;
-            this.checkTutorialTriggers();
-        }
-    }, maxSpawnDelay + 0.4);
-}
 
     private checkTutorialTriggers() {
         if (!this._tutorialHand) return;
@@ -430,81 +456,73 @@ private refillGrid(isInitial: boolean = false) {
         this.createSpecialItem(this.tntPrefab, r, c, "TNT");
     }
 
-private spawnOrbItem(r: number, c: number, colorId: string = "") {
-    const orbPrefab = this.orbPrefabs.find(p => p.name.toLowerCase().includes(colorId.toLowerCase()));
-    if (!orbPrefab) { 
-        this.applyGravity(); 
-        return; 
-    }
-    
-    const item = instantiate(orbPrefab);
-    item.parent = this.node;
-    item.setSiblingIndex(this.node.children.length); // Keep on top
+    private spawnOrbItem(r: number, c: number, colorId: string = "") {
+        const orbPrefab = this.orbPrefabs.find(p => p.name.toLowerCase().includes(colorId.toLowerCase()));
+        if (!orbPrefab) { 
+            this.applyGravity(); 
+            return; 
+        }
+        
+        const item = instantiate(orbPrefab);
+        item.parent = this.node;
+        item.setSiblingIndex(this.node.children.length);
 
-    // Access GridPiece (ensure it's on the root of the prefab for logic)
-    const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
-    piece.row = r; 
-    piece.col = c; 
-    piece.prefabName = "ORB"; 
-    piece.colorId = colorId;
-    
-    const offsetX = (this.cols - 1) * this.actualCellSize / 2;
-    const offsetY = (this.rows - 1) * this.actualCellSize / 2;
-    item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
-    item.setScale(v3(0, 0, 0));
-    this.grid[r][c] = item;
+        const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
+        piece.row = r; 
+        piece.col = c; 
+        piece.prefabName = "ORB"; 
+        piece.colorId = colorId;
+        
+        const offsetX = (this.cols - 1) * this.actualCellSize / 2;
+        const offsetY = (this.rows - 1) * this.actualCellSize / 2;
+        item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
+        item.setScale(v3(0, 0, 0));
+        this.grid[r][c] = item;
 
-    // Trigger ReverseFlash on the child node
-    const flashNode = item.getChildByName("ReverseFlash");
-    if (flashNode) {
-        const flashAnim = flashNode.getComponent(Animation);
-        if (flashAnim) flashAnim.play("reverseAnim");
-    }
+        const flashNode = item.getChildByName("ReverseFlash");
+        if (flashNode) {
+            const flashAnim = flashNode.getComponent(Animation);
+            if (flashAnim) flashAnim.play("reverseAnim");
+        }
 
-    tween(item)
-        .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
-        .call(() => { this.applyGravity(); })
-        .start();
-}
-
-private createSpecialItem(prefab: Prefab, r: number, c: number, name: string, colorId: string = "") {
-    const item = instantiate(prefab);
-    item.parent = this.node;
-
-    // --- FIX: Force to front of Hierarchy ---
-    // Moving the node to the last position in the children array ensures it renders on top of all balls/bricks
-    item.setSiblingIndex(this.node.children.length); 
-
-    const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
-    piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
-    
-    const offsetX = (this.cols - 1) * this.actualCellSize / 2;
-    const offsetY = (this.rows - 1) * this.actualCellSize / 2;
-    const targetPos = v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0);
-    
-    item.setPosition(targetPos);
-    item.setScale(v3(0, 0, 0));
-    this.grid[r][c] = item;
-
-    // --- INTEGRATION: ReverseFlash Animation ---
-    // Searching for the ReverseFlash node to play the spawn animation
-    const flashNode = item.getChildByName("ReverseFlash");
-    if (flashNode) {
-        const flashAnim = flashNode.getComponent(Animation);
-        if (flashAnim) flashAnim.play("reverseAnim"); // Duration is .87 sec
+        tween(item)
+            .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
+            .call(() => { this.applyGravity(); })
+            .start();
     }
 
-    // Existing spin and scale effect
-    tween(item)
-        .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
-        .call(() => {
-            item.angle = 0;
-            tween(item)
-                .to(0.6, { angle: -360 }, { easing: 'quadOut' })
-                .start();
+    private createSpecialItem(prefab: Prefab, r: number, c: number, name: string, colorId: string = "") {
+        const item = instantiate(prefab);
+        item.parent = this.node;
+        item.setSiblingIndex(this.node.children.length); 
 
-            this.applyGravity();
-        })
-        .start();
-}
+        const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
+        piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
+        
+        const offsetX = (this.cols - 1) * this.actualCellSize / 2;
+        const offsetY = (this.rows - 1) * this.actualCellSize / 2;
+        const targetPos = v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0);
+        
+        item.setPosition(targetPos);
+        item.setScale(v3(0, 0, 0));
+        this.grid[r][c] = item;
+
+        const flashNode = item.getChildByName("ReverseFlash");
+        if (flashNode) {
+            const flashAnim = flashNode.getComponent(Animation);
+            if (flashAnim) flashAnim.play("reverseAnim");
+        }
+
+        tween(item)
+            .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
+            .call(() => {
+                item.angle = 0;
+                tween(item)
+                    .to(0.6, { angle: -360 }, { easing: 'quadOut' })
+                    .start();
+
+                this.applyGravity();
+            })
+            .start();
+    }
 }
