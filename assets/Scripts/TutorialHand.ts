@@ -26,22 +26,27 @@ export class TutorialHand extends Component {
         }
     }
 
-    public showAt(pos: Vec3) {
-        this.node.active = true;
-        this._isShowing = true;
-        this.node.setPosition(pos);
-        
-        tween(this.node).stop();
+public showAt(pos: Vec3) {
+    // If we are already showing this exact position, don't restart the animation
+    if (this._isShowing && this.node.position.equals(pos, 0.1)) return;
 
-        tween(this.node)
-            .to(0, { scale: v3(0, 0, 0) })
-            .to(0.4, { scale: this._baseScale }, { easing: 'backOut' })
-            .delay(0.45)
-            .to(0.4, { scale: v3(0, 0, 0) }, { easing: 'backIn' })
-            .union()
-            .repeatForever()
-            .start();
-    }
+    this.node.active = true;
+    this._isShowing = true;
+    this.node.setPosition(pos);
+    
+    tween(this.node).stop();
+    this.node.setScale(v3(0, 0, 0)); // Start from zero only once
+
+    tween(this.node)
+        .to(0.3, { scale: this._baseScale }, { easing: 'backOut' })
+        // Smooth, non-jittery pulse
+        .repeatForever(
+            tween(this.node)
+                .to(0.5, { scale: v3(this._baseScale.x * 1.2, this._baseScale.y * 1.2, 1) }, { easing: 'quadInOut' })
+                .to(0.5, { scale: this._baseScale }, { easing: 'quadInOut' })
+        )
+        .start();
+}
 
     public hide() {
         this._isShowing = false;
