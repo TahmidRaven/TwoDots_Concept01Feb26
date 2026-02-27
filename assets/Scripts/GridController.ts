@@ -430,11 +430,42 @@ private refillGrid(isInitial: boolean = false) {
         this.createSpecialItem(this.tntPrefab, r, c, "TNT");
     }
 
-    private spawnOrbItem(r: number, c: number, colorId: string = "") {
-        const orbPrefab = this.orbPrefabs.find(p => p.name.toLowerCase().includes(colorId.toLowerCase()));
-        if (!orbPrefab) { this.applyGravity(); return; }
-        this.createSpecialItem(orbPrefab, r, c, "ORB", colorId);
+private spawnOrbItem(r: number, c: number, colorId: string = "") {
+    const orbPrefab = this.orbPrefabs.find(p => p.name.toLowerCase().includes(colorId.toLowerCase()));
+    if (!orbPrefab) { 
+        this.applyGravity(); 
+        return; 
     }
+    
+    const item = instantiate(orbPrefab);
+    item.parent = this.node;
+    item.setSiblingIndex(this.node.children.length); // Keep on top
+
+    // Access GridPiece (ensure it's on the root of the prefab for logic)
+    const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
+    piece.row = r; 
+    piece.col = c; 
+    piece.prefabName = "ORB"; 
+    piece.colorId = colorId;
+    
+    const offsetX = (this.cols - 1) * this.actualCellSize / 2;
+    const offsetY = (this.rows - 1) * this.actualCellSize / 2;
+    item.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
+    item.setScale(v3(0, 0, 0));
+    this.grid[r][c] = item;
+
+    // Trigger ReverseFlash on the child node
+    const flashNode = item.getChildByName("ReverseFlash");
+    if (flashNode) {
+        const flashAnim = flashNode.getComponent(Animation);
+        if (flashAnim) flashAnim.play("reverseAnim");
+    }
+
+    tween(item)
+        .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
+        .call(() => { this.applyGravity(); })
+        .start();
+}
 
 private createSpecialItem(prefab: Prefab, r: number, c: number, name: string, colorId: string = "") {
     const item = instantiate(prefab);
