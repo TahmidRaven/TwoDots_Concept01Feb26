@@ -297,40 +297,50 @@ export class GridController extends Component {
         this.scheduleOnce(() => { this.refillGrid(false); }, longestMove);
     }
 
-    private refillGrid(isInitial: boolean = false) {
-        let spawnCount = 0;
-        let maxSpawnDelay = 0;
-        for (let c = 0; c < this.cols; c++) {
-            if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) continue;
-            for (let r = this.rows - 1; r >= 0; r--) {
-                if (this.grid[r][c] === null) {
-                    let blockedFromAbove = false;
-                    for (let k = r - 1; k >= 0; k--) {
-                        if (this.grid[k][c] !== null && !this.grid[k][c].getComponent(GridPiece)) {
-                            blockedFromAbove = true;
-                            break;
-                        }
+private refillGrid(isInitial: boolean = false) {
+    let spawnCount = 0;
+    let maxSpawnDelay = 0;
+    for (let c = 0; c < this.cols; c++) {
+        if (this.grid[0][c] !== null && !this.grid[0][c].getComponent(GridPiece)) continue;
+        for (let r = this.rows - 1; r >= 0; r--) {
+            if (this.grid[r][c] === null) {
+                let blockedFromAbove = false;
+                for (let k = r - 1; k >= 0; k--) {
+                    if (this.grid[k][c] !== null && !this.grid[k][c].getComponent(GridPiece)) {
+                        blockedFromAbove = true;
+                        break;
                     }
-                    if (!blockedFromAbove) {
-                        const delay = spawnCount * 0.05;
-                        this.spawnBallAtTop(c, r, delay, isInitial);
-                        maxSpawnDelay = Math.max(maxSpawnDelay, delay);
-                        spawnCount++;
-                    }
+                }
+                if (!blockedFromAbove) {
+                    const delay = spawnCount * 0.05;
+                    this.spawnBallAtTop(c, r, delay, isInitial);
+                    maxSpawnDelay = Math.max(maxSpawnDelay, delay);
+                    spawnCount++;
                 }
             }
         }
-
-        this.scheduleOnce(() => {
-            if (!GridShuffler.hasValidMoves(this.grid, this.rows, this.cols)) {
-                GridShuffler.shuffle(this.grid, this.rows, this.cols, this.actualCellSize, () => { this.refillGrid(false); });
-            } else {
-                this.isProcessing = false;
-                this._idleTimer = 0;
-                this.checkTutorialTriggers();
-            }
-        }, maxSpawnDelay + 0.4);
     }
+
+    this.scheduleOnce(() => {
+        // --- Force Special Items to Top of Hierarchy ---
+        // After new balls are spawned, they become the newest children. 
+        // re-sort the TNT/ORB items to the end of the list so they render last (on top).
+        this.node.children.forEach(child => {
+            const piece = child.getComponent(GridPiece);
+            if (piece && (piece.prefabName === "TNT" || piece.prefabName === "ORB")) {
+                child.setSiblingIndex(this.node.children.length);
+            }
+        });
+
+        if (!GridShuffler.hasValidMoves(this.grid, this.rows, this.cols)) {
+            GridShuffler.shuffle(this.grid, this.rows, this.cols, this.actualCellSize, () => { this.refillGrid(false); });
+        } else {
+            this.isProcessing = false;
+            this._idleTimer = 0;
+            this.checkTutorialTriggers();
+        }
+    }, maxSpawnDelay + 0.4);
+}
 
     private checkTutorialTriggers() {
         if (!this._tutorialHand) return;
@@ -426,31 +436,44 @@ export class GridController extends Component {
         this.createSpecialItem(orbPrefab, r, c, "ORB", colorId);
     }
 
-    private createSpecialItem(prefab: Prefab, r: number, c: number, name: string, colorId: string = "") {
-        const item = instantiate(prefab);
-        item.parent = this.node;
-        const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
-        piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
-        
-        const offsetX = (this.cols - 1) * this.actualCellSize / 2;
-        const offsetY = (this.rows - 1) * this.actualCellSize / 2;
-        const targetPos = v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0);
-        
-        item.setPosition(targetPos);
-        item.setScale(v3(0, 0, 0));
-        this.grid[r][c] = item;
+private createSpecialItem(prefab: Prefab, r: number, c: number, name: string, colorId: string = "") {
+    const item = instantiate(prefab);
+    item.parent = this.node;
 
-        // One-time 360 degree spin for both TNT and ORB items
-        tween(item)
-            .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
-            .call(() => {
-                item.angle = 0;
-                tween(item)
-                    .to(0.6, { angle: -360 }, { easing: 'quadOut' })
-                    .start();
+    // --- FIX: Force to front of Hierarchy ---
+    // Moving the node to the last position in the children array ensures it renders on top of all balls/bricks
+    item.setSiblingIndex(this.node.children.length); 
 
-                this.applyGravity();
-            })
-            .start();
+    const piece = item.getComponent(GridPiece) || item.addComponent(GridPiece);
+    piece.row = r; piece.col = c; piece.prefabName = name; piece.colorId = colorId;
+    
+    const offsetX = (this.cols - 1) * this.actualCellSize / 2;
+    const offsetY = (this.rows - 1) * this.actualCellSize / 2;
+    const targetPos = v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0);
+    
+    item.setPosition(targetPos);
+    item.setScale(v3(0, 0, 0));
+    this.grid[r][c] = item;
+
+    // --- INTEGRATION: ReverseFlash Animation ---
+    // Searching for the ReverseFlash node to play the spawn animation
+    const flashNode = item.getChildByName("ReverseFlash");
+    if (flashNode) {
+        const flashAnim = flashNode.getComponent(Animation);
+        if (flashAnim) flashAnim.play("reverseAnim"); // Duration is .87 sec
     }
+
+    // Existing spin and scale effect
+    tween(item)
+        .to(0.2, { scale: v3(this.gridScale, this.gridScale, 1) }, { easing: 'backOut' })
+        .call(() => {
+            item.angle = 0;
+            tween(item)
+                .to(0.6, { angle: -360 }, { easing: 'quadOut' })
+                .start();
+
+            this.applyGravity();
+        })
+        .start();
+}
 }
