@@ -220,10 +220,13 @@ export class SpecialItemEffects {
             .delay(drawWindow + holdTime)
             .call(() => { 
                 if (lightning) lightning.clearWeb();
-                if (lightningAnimNode && isValid(lightningAnimNode)) {
-                    const anim = lightningAnimNode.getComponent(Animation);
-                    if (anim) anim.play();
-                }
+
+           // -- REMOVED: THE LIGHTING PNG ANIMATION -- 
+           
+                // if (lightningAnimNode && isValid(lightningAnimNode)) {
+                //     const anim = lightningAnimNode.getComponent(Animation);
+                //     if (anim) anim.play();
+                // }
             })
             .to(0.1, { scale: v3(0, 0, 0) })
             .call(() => { 
