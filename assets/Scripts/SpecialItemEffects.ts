@@ -80,7 +80,7 @@ export class SpecialItemEffects {
                     }
                 }
             }
-        }, 550); 
+        }, 450); 
 
         // PHASE B: DESTRUCTION OF BLOCKS (1150ms)
         // when the balls and bricks around THIS TNT are actually destroyed.
@@ -119,13 +119,13 @@ export class SpecialItemEffects {
                     }
                 }
             }
-        }, 1150); 
+        }, 850); 
 
         // PHASE C: VISUAL CLEANUP (1850ms)
         setTimeout(() => { 
             if (isValid(tntNode)) tntNode.destroy();
             this.decrementExplosionCount(onComplete);
-        }, 1580); 
+        }, 1120); 
     }
 
     /**
