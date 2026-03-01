@@ -5,6 +5,7 @@
       "image": "project://settings/Mnemonick 1.png",
       "type": "custom"
     },
-    "displayRatio": 2
+    "displayRatio": 2,
+    "totalTime": 500
   }
 }

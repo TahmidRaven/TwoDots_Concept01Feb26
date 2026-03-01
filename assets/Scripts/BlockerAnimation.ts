@@ -26,9 +26,11 @@ export class BlockerAnimation extends Component {
 
         tween(sprite)
             .delay(delay)
-            .to(0.3, { color: originalColor })
-            .delay(duration - 0.6)
+            // .to(0.3, { color: originalColor })
             .to(0.3, { color: blueGlow })
+            .delay(duration - 0.6)
+            // .to(0.3, { color: blueGlow })
+            .to(0.3, { color: originalColor })
             .start();
 
         tween(this.node as Node)
