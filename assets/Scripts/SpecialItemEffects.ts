@@ -2,7 +2,6 @@ import { Node, v3, Vec3, tween, Animation, isValid, UITransform, Sprite, Color }
 import { GridPiece } from './GridPiece';
 import { GameManager } from './GameManager';
 import { LightningEffect } from './LightningEffect';
-// FIX: Added the BlockerAnimation import to resolve 'Cannot find name' error
 import { BlockerAnimation } from './BlockerAnimation'; 
 
 export class SpecialItemEffects {
@@ -17,7 +16,7 @@ export class SpecialItemEffects {
     private static activeExplosions = 0;
 
     /**
-     * Executes the TNT effect with overlapping chain reactions.
+     * TNT effect with overlapping chain reactions.
      */
     public static executeTNT(
         r: number, 
@@ -43,8 +42,7 @@ export class SpecialItemEffects {
             anim.play();
         }
         
-        // --- NEW: WARNING SHAKE FOR NEIGHBORING BLOCKERS ---
-        // This triggers as soon as the TNT is tapped
+        // --- WARNING SHAKE FOR NEIGHBORING BLOCKERS ---
         for (let dr = -1; dr <= 1; dr++) {
             for (let dc = -1; dc <= 1; dc++) {
                 const nr = r + dr, nc = c + dc;
@@ -61,11 +59,10 @@ export class SpecialItemEffects {
         }
         // -----------------------------------------------------
 
-        // Remove from logical grid immediately so other explosions don't re-trigger it
         grid[r][c] = null; 
 
         // PHASE A: CHAIN REACTION TRIGGER (550ms)
-        // This starts the next TNT's animation before this one is even finished.
+        // starts the next TNT's animation before this one is even finished.
         setTimeout(() => {
             for (let dr = -1; dr <= 1; dr++) {
                 for (let dc = -1; dc <= 1; dc++) {
@@ -86,7 +83,7 @@ export class SpecialItemEffects {
         }, 550); 
 
         // PHASE B: DESTRUCTION OF BLOCKS (1150ms)
-        // This is when the balls and bricks around THIS TNT are actually destroyed.
+        // when the balls and bricks around THIS TNT are actually destroyed.
         setTimeout(() => {
             if (GameManager.instance) GameManager.instance.playAudio("TNTexplosion");
 
@@ -132,7 +129,7 @@ export class SpecialItemEffects {
     }
 
     /**
-     * Executes the Orb effect: Clears all items of a specific color.
+     * Executes the Orb effect 
      */
     public static executeOrb(
         r: number, c: number, grid: (Node | null)[][], rows: number, cols: number, 
@@ -225,7 +222,7 @@ export class SpecialItemEffects {
             .call(() => { 
                 if (lightning) lightning.clearWeb();
 
-           // -- REMOVED: THE LIGHTING PNG ANIMATION -- 
+           // -- THE LIGHTING PNG ANIMATION --  Rubens Bhaiya said remove
 
                 // if (lightningAnimNode && isValid(lightningAnimNode)) {
                 //     const anim = lightningAnimNode.getComponent(Animation);

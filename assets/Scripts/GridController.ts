@@ -18,7 +18,7 @@ export class GridController extends Component {
     @property([Prefab]) orbPrefabs: Prefab[] = [];
     @property(Prefab) blockDestroyPrefab: Prefab = null;
     
-    // NEW: Property for the .plist particle effect
+    // Property for the .plist particle effect
     @property(Prefab) glowParticlePrefab: Prefab = null; 
 
     @property({ type: CCInteger }) rows: number = 9;
@@ -249,38 +249,38 @@ export class GridController extends Component {
         const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);
         if (sprite) sprite.color = new Color().fromHEX(hex);
 
-// 2. NEW: Spawn the .plist Glow Particle at the same place
-if (this.glowParticlePrefab) {
-    const particlesNode = instantiate(this.glowParticlePrefab);
-    particlesNode.parent = this.node;
-    particlesNode.setPosition(pos);
-    particlesNode.setSiblingIndex(this.node.children.length);
+        // 2. NEW: Spawn the .plist Glow Particle at the same place
+        if (this.glowParticlePrefab) {
+            const particlesNode = instantiate(this.glowParticlePrefab);
+            particlesNode.parent = this.node;
+            particlesNode.setPosition(pos);
+            particlesNode.setSiblingIndex(this.node.children.length);
 
-    const ps2d = particlesNode.getComponent(ParticleSystem2D);
-    if (ps2d) {
-        const targetColor = new Color().fromHEX(hex);
-        
-        // Assign to both start and end to ensure a solid color throughout life
-        ps2d.startColor = targetColor.clone();
-        ps2d.endColor = targetColor.clone();
+            const ps2d = particlesNode.getComponent(ParticleSystem2D);
+            if (ps2d) {
+                const targetColor = new Color().fromHEX(hex);
+                
+                // Assign to both start and end to ensure a solid color throughout life
+                ps2d.startColor = targetColor.clone();
+                ps2d.endColor = targetColor.clone();
 
-        // If the .plist has color variance (the black boxes in your screenshot), 
-        // set them to 0 to prevent the color from flickering or being "off-brand"
-        ps2d.startColorVar = new Color(0, 0, 0, 0);
-        ps2d.endColorVar = new Color(0, 0, 0, 0);
+                // If the .plist has color variance (the black boxes in your screenshot), 
+                // set them to 0 to prevent the color from flickering or being "off-brand"
+                ps2d.startColorVar = new Color(0, 0, 0, 0);
+                ps2d.endColorVar = new Color(0, 0, 0, 0);
 
-        ps2d.resetSystem(); 
-    }
-}
-
-        const anim = effect.getComponent(Animation);
-        if (anim) {
-            anim.play(colorId === "blocker" ? 'blockDestoryAnimation' : 'blockDestoryAnimation2');
-            anim.on(Animation.EventType.FINISHED, () => { if (isValid(effect)) effect.destroy(); });
-        } else {
-            this.scheduleOnce(() => { if (isValid(effect)) effect.destroy(); }, 0.5);
+                ps2d.resetSystem(); 
+            }
         }
-    }
+
+            const anim = effect.getComponent(Animation);
+            if (anim) {
+                anim.play(colorId === "blocker" ? 'blockDestoryAnimation' : 'blockDestoryAnimation2');
+                anim.on(Animation.EventType.FINISHED, () => { if (isValid(effect)) effect.destroy(); });
+            } else {
+                this.scheduleOnce(() => { if (isValid(effect)) effect.destroy(); }, 0.5);
+            }
+        }
 
     private checkAndDestroyAdjacentBlockers(r: number, c: number) {
         const directions = [{dr:1,dc:0}, {dr:-1,dc:0}, {dr:0,dc:1}, {dr:0,dc:-1}];

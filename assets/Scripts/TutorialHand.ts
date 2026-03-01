@@ -12,13 +12,10 @@ export class TutorialHand extends Component {
         this.node.setScale(v3(0, 0, 0));
     }
 
-    /**
-     * Converts World Position to Local Space before showing
-     */
+
     public showAtWorld(worldPos: Vec3) {
         if (!this.node.parent) return;
         
-        // Get the parent's UITransform to convert the world coordinate into local space
         const parentUIT = this.node.parent.getComponent(UITransform);
         if (parentUIT) {
             const localPos = parentUIT.convertToNodeSpaceAR(worldPos);
