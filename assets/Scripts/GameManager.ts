@@ -3,6 +3,7 @@ import { GridController } from './GridController';
 import { VictoryScreen } from './VictoryScreen'; 
 import { AudioContent } from './AudioContent'; 
 import { AdManager } from '../ScriptsReusable/AdManager';
+
 import { FlipClockLabel } from './FlipClockLabel'; 
 const { ccclass, property } = _decorator;
 
@@ -36,7 +37,6 @@ export class GameManager extends Component {
     private _currentTntUsed: number = 0;
     private _currentOrbUsed: number = 0;
 
-    // Reactive setter ensures UI always updates when value changes
     public get remainingBlockers(): number {
         return this._remainingBlockers;
     }
@@ -48,7 +48,14 @@ export class GameManager extends Component {
 
     onLoad() {
         GameManager.instance = this;
+        
         if (this.victoryScreen) this.victoryScreen.active = false;
+
+        // 1. Notify AdNetworks that the game logic is loaded
+        this.scheduleOnce(() => {
+            AdManager.gameReady();
+        }, 0.1);
+
         this.audioList.forEach(content => {
             if (content && content.AudioClip) {
                 let source = content.getComponent(AudioSource) || content.addComponent(AudioSource);
