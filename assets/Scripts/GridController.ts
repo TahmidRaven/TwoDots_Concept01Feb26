@@ -1,4 +1,4 @@
-import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, CCFloat, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite, ParticleSystem2D } from 'cc';
+import { _decorator, Component, Node, Prefab, instantiate, UITransform, CCInteger, CCFloat, EventTouch, input, Input, v3, Vec3, tween, Color, Animation, isValid, Sprite, ParticleSystem2D, ccenum } from 'cc';
 import { GridPiece } from './GridPiece';
 import { SpecialItemEffects } from './SpecialItemEffects';
 import { GameManager } from './GameManager';
@@ -9,6 +9,15 @@ import { TypewriterEffect } from './TypewriterEffect';
 import { BlockerAnimation } from './BlockerAnimation'; 
 
 const { ccclass, property } = _decorator;
+
+/**
+ * Using String Enums makes debugging easier as the values 
+ * show up as "LEFT" or "MIDDLE" in the console.
+ */
+enum StartPattern {
+    LEFT = 'LEFT',
+    MIDDLE = 'MIDDLE'
+}
 
 @ccclass('GridController')
 export class GridController extends Component {
@@ -23,6 +32,13 @@ export class GridController extends Component {
     @property({ type: CCInteger }) rows: number = 9;
     @property({ type: CCInteger }) cols: number = 9;
     @property({ type: CCFloat }) public gridScale: number = 0.8;
+
+    @property({ 
+        type: ccenum(StartPattern), 
+        tooltip: "Choose where the balls initially spawn: LEFT (cols 0-2) or MIDDLE (cols 3-5)" 
+    })
+    public startPattern: StartPattern = StartPattern.MIDDLE;  // MIDDLE or LEFT -> initial balls
+
 
     @property(LightningEffect) lightning: LightningEffect = null;
     @property(Node) lightningAnimNode: Node = null!; 
@@ -94,7 +110,6 @@ export class GridController extends Component {
         this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
     }
 
-    // MIDDLE INITIAL BALLS:
     private generateBlockerGrid() {
         if (!this.blockerPrefab) return;
         const temp = instantiate(this.blockerPrefab);
@@ -107,16 +122,25 @@ export class GridController extends Component {
         for (let r = 0; r < this.rows; r++) {
             this.grid[r] = [];
             for (let c = 0; c < this.cols; c++) {
-                // MIDDLE INITIAL BALLS: Check if column is index 3, 4, or 5
-                // And if row is within the active rows (0 to 4)
-                if (r < this.activeRows && (c >= 3 && c <= 5)) {
-                    this.grid[r][c] = null; // filled by refillGrid
+                
+                let isPlayableArea = false;
+
+                // Logic switch using the readable Enum names
+                if (this.startPattern === StartPattern.LEFT) {
+                    isPlayableArea = (r < this.activeRows && c < this.activeCols);
+                } else if (this.startPattern === StartPattern.MIDDLE) {
+                    isPlayableArea = (r < this.activeRows && (c >= 3 && c <= 5));
+                }
+
+                if (isPlayableArea) {
+                    this.grid[r][c] = null; 
                 } else {
                     const brick = instantiate(this.blockerPrefab);
                     brick.parent = this.node;
                     brick.setScale(v3(this.gridScale, this.gridScale, 1));
                     brick.setPosition(v3((c * this.actualCellSize) - offsetX, offsetY - (r * this.actualCellSize), 0));
                     this.grid[r][c] = brick;
+                    
                     let animComp = brick.getComponent(BlockerAnimation) || brick.addComponent(BlockerAnimation);
                     animComp.playIntroEffect(1.25, (r + c) * 0.04);
                 }
@@ -232,7 +256,6 @@ export class GridController extends Component {
     public playEffect(pos: Vec3, colorId: string) {
         if (!this.blockDestroyPrefab) return;
 
-        // 1. Spawn existing Destruction Animation Prefab
         const effect = instantiate(this.blockDestroyPrefab);
         effect.parent = this.node;
         effect.setPosition(pos);
@@ -251,7 +274,6 @@ export class GridController extends Component {
         const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);
         if (sprite) sprite.color = new Color().fromHEX(hex);
 
-        // 2. Spawn the .plist Glow Particle at the same place
         if (this.glowParticlePrefab) {
             const particlesNode = instantiate(this.glowParticlePrefab);
             particlesNode.parent = this.node;
@@ -261,27 +283,22 @@ export class GridController extends Component {
             const ps2d = particlesNode.getComponent(ParticleSystem2D);
             if (ps2d) {
                 const targetColor = new Color().fromHEX(hex);
-                
-                // start and end to ensure a solid color throughout life
                 ps2d.startColor = targetColor.clone();
                 ps2d.endColor = targetColor.clone();
-
-                // color 
                 ps2d.startColorVar = new Color(0, 0, 0, 0);
                 ps2d.endColorVar = new Color(0, 0, 0, 0);
-
                 ps2d.resetSystem(); 
             }
         }
 
-            const anim = effect.getComponent(Animation);
-            if (anim) {
-                anim.play(colorId === "blocker" ? 'blockDestoryAnimation' : 'blockDestoryAnimation2');
-                anim.on(Animation.EventType.FINISHED, () => { if (isValid(effect)) effect.destroy(); });
-            } else {
-                this.scheduleOnce(() => { if (isValid(effect)) effect.destroy(); }, 0.5);
-            }
+        const anim = effect.getComponent(Animation);
+        if (anim) {
+            anim.play(colorId === "blocker" ? 'blockDestoryAnimation' : 'blockDestoryAnimation2');
+            anim.on(Animation.EventType.FINISHED, () => { if (isValid(effect)) effect.destroy(); });
+        } else {
+            this.scheduleOnce(() => { if (isValid(effect)) effect.destroy(); }, 0.5);
         }
+    }
 
     private checkAndDestroyAdjacentBlockers(r: number, c: number) {
         const directions = [{dr:1,dc:0}, {dr:-1,dc:0}, {dr:0,dc:1}, {dr:0,dc:-1}];

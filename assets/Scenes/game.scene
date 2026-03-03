@@ -3587,6 +3587,7 @@
     "rows": 9,
     "cols": 9,
     "gridScale": 1.25,
+    "startPattern": "LEFT",
     "lightning": {
       "__id__": 96
     },
