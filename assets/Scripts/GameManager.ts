@@ -32,7 +32,7 @@ export class GameManager extends Component {
     @property([AudioContent]) public audioList: AudioContent[] = [];
 
     private _isGameOver: boolean = false;
-    private _currentMoves: number = 99; 
+    private _currentMoves: number = 77; 
     private _remainingBlockers: number = 66; 
     private _currentTntUsed: number = 0;
     private _currentOrbUsed: number = 0;
@@ -51,7 +51,7 @@ export class GameManager extends Component {
         
         if (this.victoryScreen) this.victoryScreen.active = false;
 
-        // 1. Notify AdNetworks that the game logic is loaded
+        // Notify AdNetworks that the game logic is loaded
         this.scheduleOnce(() => {
             AdManager.gameReady();
         }, 0.1);

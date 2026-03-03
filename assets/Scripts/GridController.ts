@@ -40,7 +40,7 @@ export class GridController extends Component {
     private activeRows: number = 5;
     private activeCols: number = 3;
     private grid: (Node | null)[][] = [];
-    private actualCellSize: number = 93;
+    private actualCellSize: number = 83;
     private isProcessing: boolean = false;
     private initialSpawnQueue: number[] = [];
 
