@@ -18,7 +18,6 @@ export class GridController extends Component {
     @property([Prefab]) orbPrefabs: Prefab[] = [];
     @property(Prefab) blockDestroyPrefab: Prefab = null;
     
-    // Property for the .plist particle effect
     @property(Prefab) glowParticlePrefab: Prefab = null; 
 
     @property({ type: CCInteger }) rows: number = 9;
@@ -95,6 +94,7 @@ export class GridController extends Component {
         this.scheduleOnce(() => { this.refillGrid(true); }, 0.5);
     }
 
+    // MIDDLE INITIAL BALLS:
     private generateBlockerGrid() {
         if (!this.blockerPrefab) return;
         const temp = instantiate(this.blockerPrefab);
@@ -107,8 +107,10 @@ export class GridController extends Component {
         for (let r = 0; r < this.rows; r++) {
             this.grid[r] = [];
             for (let c = 0; c < this.cols; c++) {
-                if (r < this.activeRows && c < this.activeCols) {
-                    this.grid[r][c] = null;
+                // MIDDLE INITIAL BALLS: Check if column is index 3, 4, or 5
+                // And if row is within the active rows (0 to 4)
+                if (r < this.activeRows && (c >= 3 && c <= 5)) {
+                    this.grid[r][c] = null; // filled by refillGrid
                 } else {
                     const brick = instantiate(this.blockerPrefab);
                     brick.parent = this.node;
@@ -249,7 +251,7 @@ export class GridController extends Component {
         const sprite = effect.getComponent(Sprite) || effect.getComponentInChildren(Sprite);
         if (sprite) sprite.color = new Color().fromHEX(hex);
 
-        // 2. NEW: Spawn the .plist Glow Particle at the same place
+        // 2. Spawn the .plist Glow Particle at the same place
         if (this.glowParticlePrefab) {
             const particlesNode = instantiate(this.glowParticlePrefab);
             particlesNode.parent = this.node;
@@ -260,12 +262,11 @@ export class GridController extends Component {
             if (ps2d) {
                 const targetColor = new Color().fromHEX(hex);
                 
-                // Assign to both start and end to ensure a solid color throughout life
+                // start and end to ensure a solid color throughout life
                 ps2d.startColor = targetColor.clone();
                 ps2d.endColor = targetColor.clone();
 
-                // If the .plist has color variance (the black boxes in your screenshot), 
-                // set them to 0 to prevent the color from flickering or being "off-brand"
+                // color 
                 ps2d.startColorVar = new Color(0, 0, 0, 0);
                 ps2d.endColorVar = new Color(0, 0, 0, 0);
 
