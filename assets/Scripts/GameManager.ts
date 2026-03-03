@@ -3,8 +3,8 @@ import { GridController } from './GridController';
 import { VictoryScreen } from './VictoryScreen'; 
 import { AudioContent } from './AudioContent'; 
 import { AdManager } from '../ScriptsReusable/AdManager';
-
 import { FlipClockLabel } from './FlipClockLabel'; 
+
 const { ccclass, property } = _decorator;
 
 @ccclass('GameManager')
@@ -17,6 +17,31 @@ export class GameManager extends Component {
     @property(Label) movesTextLabel: Label = null!; 
     @property(Label) bricksTextLabel: Label = null!; 
     @property(Node) victoryScreen: Node = null!;
+
+    // --- RECURRING REDIRECT SETTINGS ---
+    @property({ group: { name: 'Auto Redirect', id: '1' } })
+    public enableAutoRedirect: boolean = false;
+
+    @property({ 
+        type: CCInteger, 
+        visible() { return (this as any).enableAutoRedirect; },
+        group: { name: 'Auto Redirect', id: '1' },
+        tooltip: "Redirect will trigger every time this many moves are spent (e.g., every 6 moves)"
+    }) 
+    public movesInterval: number = 6;
+
+    @property({ 
+        visible() { return (this as any).enableAutoRedirect; },
+        group: { name: 'Auto Redirect', id: '1' }
+    })
+    public iosLink: string = "https://apps.apple.com/us/app/two-dots-connect-the-colors/id880178264";
+
+    @property({ 
+        visible() { return (this as any).enableAutoRedirect; },
+        group: { name: 'Auto Redirect', id: '1' }
+    })
+    public androidLink: string = "https://play.google.com/store/apps/details?id=com.weplaydots.twodotsandroid";
+    // ----------------------------------
 
     @property({ tooltip: "If unchecked, TNT and ORBs can be spawned infinitely." })
     public useSpecialItemCap: boolean = false;
@@ -32,10 +57,14 @@ export class GameManager extends Component {
     @property([AudioContent]) public audioList: AudioContent[] = [];
 
     private _isGameOver: boolean = false;
+    private _totalInitialMoves: number = 77; 
     private _currentMoves: number = 77; 
     private _remainingBlockers: number = 66; 
     private _currentTntUsed: number = 0;
     private _currentOrbUsed: number = 0;
+    
+    private _movesSpentSinceLastRedirect: number = 0;
+    private _redirectCooldown: boolean = false;
 
     public get remainingBlockers(): number {
         return this._remainingBlockers;
@@ -48,13 +77,11 @@ export class GameManager extends Component {
 
     onLoad() {
         GameManager.instance = this;
+        this._totalInitialMoves = this._currentMoves; 
         
         if (this.victoryScreen) this.victoryScreen.active = false;
 
-        // Notify AdNetworks that the game logic is loaded
-        this.scheduleOnce(() => {
-            AdManager.gameReady();
-        }, 0.1);
+        this.scheduleOnce(() => { AdManager.gameReady(); }, 0.1);
 
         this.audioList.forEach(content => {
             if (content && content.AudioClip) {
@@ -70,35 +97,54 @@ export class GameManager extends Component {
         this.updateUI(true); 
         if (this.gridController) this.gridController.initGrid();
         this.playAudio("BGM");
-        AdManager.gameReady();
     }
 
     public playAudio(name: string) {
         const content = this.audioList.find(a => a.AudioName === name);
-        if (content && content.AudioSource) {
-            content.AudioSource.play();
-        }
+        if (content && content.AudioSource) content.AudioSource.play();
     }
 
     public decrementMoves() {
         if (this._isGameOver) return;
+        
         this._currentMoves--;
+
+        // LOGIC: Increment spent counter and check against interval
+        if (this.enableAutoRedirect && !this._redirectCooldown) {
+            this._movesSpentSinceLastRedirect++;
+
+            console.log(`Moves spent since last redirect: ${this._movesSpentSinceLastRedirect} / ${this.movesInterval}`);
+
+            if (this._movesSpentSinceLastRedirect >= this.movesInterval) {
+                this._movesSpentSinceLastRedirect = 0; // Reset counter
+                this.executeRedirect();
+            }
+        }
+
         if (this.movesLabel && this._currentMoves <= 5) this.movesLabel.color = Color.RED;
         this.updateUI();
+
         if (this._currentMoves <= 0 && this._remainingBlockers > 0) this.showGameOver(false); 
+    }
+
+    private executeRedirect() {
+        // Prevent multiple redirects firing at the exact same time
+        this._redirectCooldown = true;
+        this.scheduleOnce(() => { this._redirectCooldown = false; }, 2.0);
+
+        console.log("EXECUTING RECURRING REDIRECT");
+        
+        AdManager.gameEnd();
+
+        const url = (navigator.userAgent.match(/iPhone|iPad|iPod/i)) ? this.iosLink : this.androidLink;
+        window.open(url, "_blank");
     }
 
     public registerBlockerDestroyed() {
         if (this._isGameOver) return;
-        if (this.remainingBlockers > 0) {
-            // This triggers the 'set remainingBlockers' logic automatically
-            this.remainingBlockers--;
-        }
-
+        if (this.remainingBlockers > 0) this.remainingBlockers--;
         if (this.remainingBlockers === 0) {
-            this.scheduleOnce(() => {
-                this.showGameOver(true);
-            }, 0.1);
+            this.scheduleOnce(() => { this.showGameOver(true); }, 0.1);
         }
     }
 
@@ -140,13 +186,8 @@ export class GameManager extends Component {
             else (this.blockersLabel.getComponent(FlipClockLabel) || this.blockersLabel.addComponent(FlipClockLabel)).flipTo(displayVal);
         }
 
-        // Logic for singular vs plural text
-        if (this.movesTextLabel) {
-            this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
-        }
-        if (this.bricksTextLabel) {
-            this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
-        }
+        if (this.movesTextLabel) this.movesTextLabel.string = this._currentMoves === 1 ? "MOVE" : "MOVES";
+        if (this.bricksTextLabel) this.bricksTextLabel.string = this._remainingBlockers === 1 ? "BRICK" : "BRICKS";
         
         if (this.tntCountLabel) this.tntCountLabel.string = this.useSpecialItemCap ? `${this._currentTntUsed}/${this.totalTntAllowed}` : `${this._currentTntUsed}`;
         if (this.orbCountLabel) this.orbCountLabel.string = this.useSpecialItemCap ? `${this._currentOrbUsed}/${this.totalOrbAllowed}` : `${this._currentOrbUsed}`;

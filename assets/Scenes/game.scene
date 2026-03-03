@@ -4121,6 +4121,10 @@
     "victoryScreen": {
       "__id__": 112
     },
+    "enableAutoRedirect": false,
+    "movesInterval": 6,
+    "iosLink": "https://apps.apple.com/us/app/two-dots-connect-the-colors/id880178264",
+    "androidLink": "https://play.google.com/store/apps/details?id=com.weplaydots.twodotsandroid",
     "useSpecialItemCap": false,
     "tntCountLabel": {
       "__id__": 57
